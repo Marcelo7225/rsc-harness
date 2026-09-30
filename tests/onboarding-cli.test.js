@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { identifyPlan } from '../scripts/lib/onboarding.js';
 
+const preToolUseGuards = (settings) => (settings.hooks.PreToolUse || [])
+  .flatMap((e) => e.hooks.map((h) => /\.rsc\/([a-z-]+)\.mjs/.exec(h.command)?.[1]).filter(Boolean)).sort();
+
 const ROOT = new URL('..', import.meta.url).pathname;
 const CLI = join(ROOT, 'scripts/rsc.js');
 const fresh = () => mkdtempSync(join(tmpdir(), 'rsc-onboard-cli-'));
@@ -116,7 +119,10 @@ test('operations on Claude keeps SessionStart but omits feature, ship and gitmoj
   const settings = JSON.parse(readFileSync(join(cwd, '.claude/settings.json'), 'utf8'));
   assert.ok(settings.hooks.SessionStart?.length);
   assert.equal(settings.hooks.UserPromptSubmit, undefined);
-  assert.equal(settings.hooks.PreToolUse, undefined);
+  // Was `PreToolUse === undefined` until #273: that encoded the bug as the contract. A `mixed` user
+  // is promised the danger guard by `init` whatever the project is; what an operations harness must
+  // still omit is the CODE machinery — ship, gitmoji and the SDD gate — which is what this test is for.
+  assert.deepEqual(preToolUseGuards(settings), ['danger-guard']);
   for (const name of ['ship-guard.mjs', 'gitmoji-guard.mjs', 'userprompt-gate.mjs']) {
     assert.ok(!existsSync(join(cwd, '.rsc', name)), name);
   }
@@ -133,7 +139,8 @@ test('re-onboarding from software to operations unwires previously installed cod
   id = preview.stdout.match(/Plan id: ([a-f0-9]{64})/)?.[1];
   assert.equal(run(cwd, ['onboard', ...operations, '--accept-plan', id]).status, 0);
   const settings = JSON.parse(readFileSync(join(cwd, '.claude/settings.json'), 'utf8'));
-  assert.equal(settings.hooks.PreToolUse, undefined);
+  // The code hooks are unwired; the danger guard stays, because the user is still `mixed` (#273).
+  assert.deepEqual(preToolUseGuards(settings), ['danger-guard']);
   assert.equal(settings.hooks.UserPromptSubmit, undefined);
 });
 

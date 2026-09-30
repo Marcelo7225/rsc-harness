@@ -131,22 +131,26 @@ export async function repair({ cwd = process.cwd(), target, home = homedir(), dr
 
   const paths = targetPaths(target, home, cwd);
   const ids = [...new Set([...Object.keys(readState(paths.stateFile).skills || {}), ...(readManifest(cwd)?.skills || [])])];
+  // The accepted plan governs a repair exactly as it governs a sync. Without it, `wireHook` saw `{}`,
+  // read `codeHooks !== false` as true and wired every guard the plan had declined — and the next
+  // `sync`, which does pass the policy, took them away again (#274). Restoring is not deciding.
+  const policy = readManifest(cwd)?.onboarding?.plan?.policy;
   const backup = createBackup({
     cwd, operation: 'repair', target,
-    paths: managedPathsForInstall({ skillIds: ids, target, home, cwd }),
+    paths: managedPathsForInstall({ skillIds: ids, target, home, cwd, policy }),
   });
 
   for (const f of todo) {
     if (f.id === 'nested-layout') rmSync(join(paths.root, 'rsc'), { recursive: true, force: true });
-    if (f.id === 'duplicate-hooks') { unwireHook(target, paths); await applyInstall({ skillIds: ids, target, home, cwd, operation: 'repair' }); }
-    if (f.id === 'dangling-links') await applyInstall({ skillIds: ids, target, home, cwd, operation: 'repair' });
+    if (f.id === 'duplicate-hooks') { unwireHook(target, paths); await applyInstall({ skillIds: ids, target, home, cwd, operation: 'repair', policy }); }
+    if (f.id === 'dangling-links') await applyInstall({ skillIds: ids, target, home, cwd, operation: 'repair', policy });
     if (f.id === 'no-manifest') recordInManifest({ cwd, target, skillIds: ids });
     if (f.id === 'wrong-target') {
       // Install where the project actually points, THEN take the old wiring down — in that
       // order, so a failure halfway leaves a working harness rather than none. Taking the
       // block out of the old file gives it back byte-identical: in #249 that file was the
       // project's hand-written constitution, and it had already been written into once.
-      await applyInstall({ skillIds: ids, target: f.to, home, cwd, operation: 'repair' });
+      await applyInstall({ skillIds: ids, target: f.to, home, cwd, operation: 'repair', policy });
       unwireHook(target, paths);
       removeManagedSkills(paths);
       recordInManifest({ cwd, target: f.to, skillIds: ids, dropTarget: target });
