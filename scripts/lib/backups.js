@@ -40,6 +40,19 @@ export function createBackup({ cwd = process.cwd(), operation, target, paths, cl
   return manifest;
 }
 
+// Where the newest snapshot kept a path, relative to the project — what to tell someone whose own work
+// was just replaced, so recovering it is a copy they can find rather than a restore they never heard of.
+// A transaction snapshot is the fallback: it is the install's rollback, not the user's copy.
+export function whereKept({ cwd = process.cwd(), relPath }) {
+  const backups = listBackups({ cwd });
+  const ordered = [...backups.filter((b) => !/transaction/.test(b.operation)), ...backups.filter((b) => /transaction/.test(b.operation))];
+  for (const b of ordered) {
+    const kept = join(backupsDir(cwd), b.id, 'files', relPath);
+    if (existsSync(kept)) return relative(cwd, kept).split(sep).join('/');
+  }
+  return null;
+}
+
 export function listBackups({ cwd = process.cwd() } = {}) {
   const dir = backupsDir(cwd);
   if (!existsSync(dir)) return [];

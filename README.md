@@ -71,6 +71,9 @@ accompaniment, project kind and goal **before it writes anything**, reads only t
 root, and shows every selected or deferred skill, agent and hook with its reason. Relay those
 questions to the user; never invent or default their answers. The first pass writes nothing and
 prints a SHA-256 plan id. Only rerun with `--accept-plan <id>` after the user accepts that exact plan.
+If the project already has a skill of its own with a catalog name, the plan lists it under
+**Your own skills this plan replaces** — tell the user before accepting; renaming their folder and
+regenerating the plan keeps theirs.
 
 For a non-interactive agent, collect the answers and preview the same plan explicitly:
 
