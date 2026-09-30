@@ -78,9 +78,12 @@ export function generatedHookFiles({ target, cwd, policy }) {
     join(cwd, '.rsc', 'hook-once.mjs'),
     join(cwd, '.rsc', 'worktree-reaper.mjs'),
   ];
-  if (policy?.codeHooks === false) return [...lifecycle, join(cwd, '.rsc', 'suggest-always-on.md')];
-  return [...lifecycle,
-    join(cwd, '.rsc', 'ship-guard.mjs'), join(cwd, '.rsc', 'danger-guard.mjs'),
+  // The danger guard is declared on its own terms (#273): present unless the plan says otherwise,
+  // whether or not the code guards are.
+  const danger = policy?.dangerGuard === false ? [] : [join(cwd, '.rsc', 'danger-guard.mjs')];
+  if (policy?.codeHooks === false) return [...lifecycle, ...danger, join(cwd, '.rsc', 'suggest-always-on.md')];
+  return [...lifecycle, ...danger,
+    join(cwd, '.rsc', 'ship-guard.mjs'),
     join(cwd, '.rsc', 'gitmoji-guard.mjs'), join(cwd, '.rsc', 'userprompt-gate.mjs'),
     join(cwd, '.rsc', 'sello.mjs')];
 }
@@ -279,6 +282,7 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
     baseAgents: policy.baseAgents !== false,
     alwaysOn: policy.alwaysOn !== false,
     codeHooks: policy.codeHooks !== false,
+    dangerGuard: policy.dangerGuard !== false,
     gitmojiGuard: policy.gitmojiGuard !== false,
     memory: policy.memory !== false,
     context7: policy.context7 === true,

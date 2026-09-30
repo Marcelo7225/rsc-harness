@@ -179,18 +179,6 @@ export function wireHook(paths, sourceMd, policy = {}) {
   );
   settings.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: sgCmd }] });
 
-  // Danger guard: a PreToolUse(Bash) hook that DENIES irreversible foot-gun commands
-  // (rm -rf, git push --force, DROP/TRUNCATE, DELETE/UPDATE without WHERE, dd to /dev,
-  // curl|bash, …) when the user-profile says the user is NON-technical (default-safe
-  // when no profile exists yet; never guards a fully `technical` user). Materialized +
-  // node-run (Windows-safe), idempotent, fail-open, opt-out via .rsc/.no-danger-guard.
-  const dgDest = join(paths.projectRoot, '.rsc', 'danger-guard.mjs');
-  copyFileSync(join(HERE, 'danger-guard.mjs'), dgDest);
-  const dgCmd = viaBootstrap('guard', at('.rsc', 'danger-guard.mjs'), `"${P}"`);
-  settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter(
-    (e) => !hookWiringOf(e).includes('.rsc/danger-guard.'),
-  );
-  settings.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: dgCmd }] });
 
   // Gitmoji guard: a PreToolUse(Bash) hook that DENIES a `git commit` whose message
   // carries no gitmoji (gitmoji.dev) in front of the Conventional Commits header. The
@@ -223,22 +211,44 @@ export function wireHook(paths, sourceMd, policy = {}) {
     (e) => !hookWiringOf(e).includes('.rsc/userprompt-gate.'),
   );
   settings.hooks.UserPromptSubmit.push({ hooks: [{ type: 'command', command: fgCmd }] });
-  written.push(sgDest, dgDest, gmDest, fgDest, join(paths.projectRoot, '.rsc', 'sello.mjs'));
+  written.push(sgDest, gmDest, fgDest, join(paths.projectRoot, '.rsc', 'sello.mjs'));
   } else {
     for (const event of ['PreToolUse', 'UserPromptSubmit']) {
       if (!settings.hooks[event]) continue;
       settings.hooks[event] = settings.hooks[event].filter((entry) => {
         const body = hookWiringOf(entry);
-        return !body.includes('.rsc/ship-guard.') && !body.includes('.rsc/danger-guard.') &&
+        return !body.includes('.rsc/ship-guard.') &&
           !body.includes('.rsc/gitmoji-guard.') && !body.includes('.rsc/userprompt-gate.');
       });
       if (!settings.hooks[event].length) delete settings.hooks[event];
     }
-    for (const name of ['ship-guard.mjs', 'danger-guard.mjs', 'gitmoji-guard.mjs', 'userprompt-gate.mjs', 'sello.mjs']) {
+    for (const name of ['ship-guard.mjs', 'gitmoji-guard.mjs', 'userprompt-gate.mjs', 'sello.mjs']) {
       rmSync(join(paths.projectRoot, '.rsc', name), { force: true });
     }
     written.push(operationsSuggest);
   }
+
+  // Danger guard: its own decision, not part of the code-hook block above (#273). `init` promises it
+  // to non-technical and mixed users whatever the project is, and a plan that predates the field is
+  // read as "yes": a non-technical operations install gets the guard it was missing on its next sync,
+  // and a technical user gets a guard that stands down at runtime.
+  settings.hooks.PreToolUse ||= [];
+  settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter((e) => !hookWiringOf(e).includes('.rsc/danger-guard.'));
+  if (policy.dangerGuard !== false) {
+    // Danger guard: a PreToolUse(Bash) hook that DENIES irreversible foot-gun commands
+    // (rm -rf, git push --force, DROP/TRUNCATE, DELETE/UPDATE without WHERE, dd to /dev,
+    // curl|bash, …) when the user-profile says the user is NON-technical (default-safe
+    // when no profile exists yet; never guards a fully `technical` user). Materialized +
+    // node-run (Windows-safe), idempotent, fail-open, opt-out via .rsc/.no-danger-guard.
+    const dgDest = join(paths.projectRoot, '.rsc', 'danger-guard.mjs');
+    copyFileSync(join(HERE, 'danger-guard.mjs'), dgDest);
+    const dgCmd = viaBootstrap('guard', at('.rsc', 'danger-guard.mjs'), `"${P}"`);
+    settings.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: dgCmd }] });
+    written.push(dgDest);
+  } else {
+    rmSync(join(paths.projectRoot, '.rsc', 'danger-guard.mjs'), { force: true });
+  }
+  if (!settings.hooks.PreToolUse.length) delete settings.hooks.PreToolUse;
 
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');
