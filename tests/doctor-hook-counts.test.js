@@ -185,9 +185,14 @@ test('an unreadable settings.json behaves exactly as before', () => {
 // ── the exit code, decided in clarify ────────────────────────────────────────────────────
 
 test('the CLI still exits 0 when duplication is found', () => {
-  // doctor is a report, not a gate. Turning it into one would break every published script that runs
-  // it expecting 0 — decided in clarify, and this is the test that keeps the decision.
+  // Duplication is a cost, not a breakage: the harness works, it just spawns more. So it never fails
+  // doctor — decided in clarify, and this is the test that keeps the decision. What does fail it since
+  // #277 is a BROKEN harness (a missing piece, an unwired hook), so the scripts exist here: this scope
+  // is duplicated and nothing else.
   const root = wiredScope({ copies: 4 });
+  for (const script of ['session-start.mjs', 'worklog-checkpoint.mjs', 'ship-guard.mjs', 'danger-guard.mjs', 'gitmoji-guard.mjs', 'userprompt-gate.mjs']) {
+    writeFileSync(join(root, '.rsc', script), '// hook\n');
+  }
   const r = spawnSync('node', [CLI, 'doctor'], { cwd: root, encoding: 'utf8', env: { ...process.env, HOME: emptyHome() } });
   assert.equal(r.status, 0, `doctor exited ${r.status}:\n${r.stdout}${r.stderr}`);
   assert.match(r.stdout, /session-start/, 'the duplication is actually printed for a human');
