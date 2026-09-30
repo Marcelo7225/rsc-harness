@@ -97,6 +97,10 @@
     {
       "fixedIn": "2.0.17",
       "symptom": "Re-accepting an onboarding plan erased what init had learned about you, reset your explanation level, or dropped an assistant you added later"
+    },
+    {
+      "fixedIn": "2.0.18",
+      "symptom": "Onboarding silently replaced a skill you wrote yourself that had the same name as one of rsc's (review, plan, debug…)"
     }
   ]
 }

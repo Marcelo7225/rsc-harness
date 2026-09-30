@@ -422,6 +422,14 @@ export function collisions({ cwd = process.cwd(), target, home, skillIds = [] })
   return skillIds.filter((id) => !managed.has(id) && existsSync(paths.skillDir(id)));
 }
 
+// The same test as `collisions`, across every target of a plan, as the paths the user would recognise.
+// `onboard` puts these in the plan itself, so the id the user accepts is an id that names them.
+export function ownSkillPaths({ cwd = process.cwd(), targets = [], skillIds = [], home }) {
+  const found = targets.flatMap((target) => collisions({ cwd, target, home, skillIds })
+    .map((id) => relative(cwd, targetPaths(target, home, cwd).skillDir(id)).split(sep).join('/')));
+  return [...new Set(found)].sort();
+}
+
 export function listInstalled({ target, home, cwd = process.cwd() }) {
   const paths = targetPaths(target, home, cwd);
   return Object.keys(readState(paths.stateFile).skills);

@@ -4,14 +4,14 @@ import { detectTarget, installedTargets, resolveTargets, TARGETS } from '../targ
 import { detectRepo } from './detect-repo.js';
 import { rank } from './consult.js';
 import { expandRecommends, toOutcomes, hasOutcome } from './lib/recommend.js';
-import { applyInstall, listInstalled, listInstalledAgents, listInstalledCommands, uninstall, syncInstalled, purge, collisions } from './install-apply.js';
+import { applyInstall, listInstalled, listInstalledAgents, listInstalledCommands, uninstall, syncInstalled, purge, collisions, ownSkillPaths } from './install-apply.js';
 import { stackAgentNames } from '../targets/agents.js';
 import { doctor } from './doctor.js';
 import { ask, say, select, pickFrom, banner, confirm, isInteractive } from './lib/ui.js';
 import { refreshRegistry, registryStatus } from './lib/registry.js';
 import { audit, writeAuditReport } from './audit.js';
 import { DOMAINS } from './lib/domains.js';
-import { listBackups, restoreBackup } from './lib/backups.js';
+import { listBackups, restoreBackup, whereKept } from './lib/backups.js';
 import { runUpgrade } from './lib/upgrade.js';
 import { diagnose, repair } from './lib/repair.js';
 import { DEFAULT_SKILL_FLOOR, withDefaultSkillFloor } from './lib/default-skill-floor.js';
@@ -142,6 +142,12 @@ function renderPlan(plan, planId) {
   for (const decision of plan.decisions.filter((d) => d.state === 'excluded')) say(`  × ${decision.kind}/${decision.id} — ${decision.reason}`);
   say('Managed paths:');
   for (const path of plan.governedPaths) say(`  ${path}`);
+  if (plan.replacesUserSkills?.length) {
+    say('Your own skills this plan replaces:');
+    for (const path of plan.replacesUserSkills) say(`  ! ${path} — already here and not put by rsc; the catalog skill of the same name takes its place, and yours is kept in .rsc/backups/`);
+    say('  To keep yours, rename its folder (for example review → review-own) and generate the plan again.');
+    say('  AGENT: name each of these to the user before accepting, and ask whether to replace or rename.');
+  }
   if (plan.evidence.parentHarness) say(`Parent harness detected at ${plan.evidence.parentHarness}; it is not inherited by this plan.`);
   const pieces = [
     'npx @ericrisco/rsc@latest onboard',
@@ -201,6 +207,11 @@ async function runOnboarding(targets) {
     return;
   }
   const plan = buildOnboardingPlan(record, scanProject(process.cwd()));
+  // #275 — a folder where a catalog skill goes that rsc did not put is the user's own work. It goes
+  // INTO the plan, so the id they accept names it: an id made before that folder existed no longer
+  // applies, and accepting is never consent to something the plan did not show.
+  const replacesUserSkills = ownSkillPaths({ cwd: process.cwd(), targets: plan.policy.targets, skillIds: plan.policy.skills });
+  if (replacesUserSkills.length) plan.replacesUserSkills = replacesUserSkills;
   const planId = identifyPlan(plan);
   const accepted = flag('accept-plan');
   if (!accepted) {
@@ -228,6 +239,10 @@ async function runOnboarding(targets) {
     ensureHarnessSkeleton(process.cwd());
   } catch (error) {
     say(`RSC_SKELETON_FAILED ${error.message}`);
+  }
+  for (const path of plan.replacesUserSkills || []) {
+    const kept = whereKept({ cwd: process.cwd(), relPath: path });
+    if (kept) say(`Your previous ${path} is kept in ${kept}`);
   }
   emitHarnessReadiness(plan, planId);
 }
