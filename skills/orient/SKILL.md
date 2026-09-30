@@ -38,7 +38,7 @@ Knowledge map or the repo before writing 📍 — an invented state is worse tha
 ## Calibrate to the dial
 
 Read `02-DOCS/wiki/harness/user-profile.md` before writing the block. Two fields combine:
-`accompaniment_level` sets the depth, `technical_level` sets the vocabulary.
+`accompaniment_level` sets the depth, `technical_level` sets the vocabulary. A profile written by an older `onboard` may carry `accompaniment:` instead — it is the same dial; read it, and write `accompaniment_level` the next time you touch the profile.
 
 | accompaniment_level | How the block behaves |
 |---------------------|-----------------------|

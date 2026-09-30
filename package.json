@@ -93,6 +93,10 @@
     {
       "fixedIn": "2.0.16",
       "symptom": "Non-technical or mixed users in a non-software project had no guard against irreversible commands; repair wired guards the plan had declined"
+    },
+    {
+      "fixedIn": "2.0.17",
+      "symptom": "Re-accepting an onboarding plan erased what init had learned about you, reset your explanation level, or dropped an assistant you added later"
     }
   ]
 }

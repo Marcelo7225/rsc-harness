@@ -41,7 +41,7 @@ Defaults when the user gives no preference: `non-technical → L3`, `mixed → L
 
 ## How every skill adapts
 
-Both values combine. `accompaniment_level` controls **how much** is said and **how many questions** are asked; `technical_level` controls **the vocabulary**.
+Both values combine. `accompaniment_level` controls **how much** is said and **how many questions** are asked; `technical_level` controls **the vocabulary**. A profile written by an older `onboard` may carry `accompaniment:` instead — it is the same dial; read it, and write `accompaniment_level` the next time you touch the profile.
 
 | Level | Output verbosity | Questions before acting | On a decision |
 | --- | --- | --- | --- |
