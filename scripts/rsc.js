@@ -758,6 +758,8 @@ async function main() {
     }
     case 'doctor': {
       const report = doctor({ target });
+      // #277 — an automation on top of rsc reads the exit code, not the prose.
+      if (!report.healthy) process.exitCode = 1;
       if (argv.includes('--json')) return void say(JSON.stringify(report, null, 2));
       printContextBudget(report.contextBudget);
       return void say(JSON.stringify({ ...report, contextBudget: undefined }, null, 2));

@@ -201,7 +201,7 @@ export function doctor({ target, home, cwd }) {
   const missingAgents = (state.agents || []).filter((id) => {
     const path = agentPath(target, root, id);
     return path && !existsSync(path);
-  }).map((id) => ({ id, action: 'Run `npx @ericrisco/rsc sync` to restore this managed agent.' }));
+  }).map((id) => ({ id, path: agentPath(target, root, id), action: 'Run `npx @ericrisco/rsc sync` to restore this managed agent.' }));
   const report = {
     target,
     installed: Object.keys(state.skills),
@@ -251,9 +251,12 @@ export function doctor({ target, home, cwd }) {
     commandOrphans,
     commandCollisions: state.commandCollisions || [],
   };
+  // #277 — the three "missing" lists share one shape, { id, path, action }, so whoever builds on top
+  // of doctor reads them the same way; and `healthy` is what the exit code says.
   for (const [id, e] of Object.entries(state.skills)) {
-    for (const f of e.files) if (!existsSync(f)) report.missing.push(`${id}:${f}`);
+    for (const f of e.files) if (!existsSync(f)) report.missing.push({ id, path: f, action: 'Run `npx @ericrisco/rsc sync` to restore this managed skill.' });
   }
+  report.healthy = report.hookWired && !report.missing.length && !missingAgents.length && !missingCommands.length;
   return report;
 }
 

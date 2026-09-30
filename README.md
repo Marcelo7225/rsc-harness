@@ -276,7 +276,7 @@ rsc consult "I want to launch a SaaS"  # recommend only, no install
 rsc registry refresh                 # write .rsc/skill-registry.{json,md}
 rsc list                             # installed skills, agents and commands
 rsc capabilities                    # installed/available surfaces + memory mode
-rsc doctor                           # health, missing backing, hooks and local memory
+rsc doctor                           # health, missing backing, hooks and local memory; exits 1 when unhealthy
 rsc memory status                    # full / assisted / unsupported / degraded
 rsc memory save --session handoff    # force a deterministic local checkpoint
 rsc memory resume                    # print this branch/worktree continuation
