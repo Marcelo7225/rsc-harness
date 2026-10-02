@@ -105,6 +105,10 @@
     {
       "fixedIn": "2.0.19",
       "symptom": "rsc doctor reported missing pieces or an unwired hook but still exited with 0, so a CI or an editor extension could not tell"
+    },
+    {
+      "fixedIn": "2.0.20",
+      "symptom": "In a project whose path contains a space, rsc doctor reported every hook script as missing and exited 1, though the scripts were there and the hooks ran"
     }
   ]
 }

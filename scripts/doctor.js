@@ -65,6 +65,10 @@ function selloStatus(root) {
 //
 // Hookless targets get an empty list by construction: their always-on surface is a
 // markdown block with no script behind it, so there is nothing that can go missing.
+// A quoted span counts as a path only if it starts like one and holds no shell operator: a whole
+// `sh -c '…'` snippet is not a path, and reading it as one reports a present script missing.
+const SCRIPT_RE =
+  /"((?:[A-Za-z]:)?[\\/~][^"&;|]*[\\/]\.rsc[\\/][^"\s]+?\.mjs)"|'((?:[A-Za-z]:)?[\\/~][^'&;|]*[\\/]\.rsc[\\/][^'\s]+?\.mjs)'|([^"'\s]*[\\/]\.rsc[\\/][^"'\s]+\.mjs)/g;
 export function missingHookScripts({ target, home = homedir(), cwd = process.cwd() } = {}) {
   if (HOOKLESS_TARGETS.has(target)) return [];
   const file = targetPaths(target, home, cwd).hookTarget;
@@ -84,8 +88,10 @@ export function missingHookScripts({ target, home = homedir(), cwd = process.cwd
   const expand = (c) => c.split('${CLAUDE_PROJECT_DIR}').join(cwd);
   for (const raw of commands) {
     const cmd = expand(raw);
-    for (const m of cmd.matchAll(/["']?([^"'\s]*[\\/]\.rsc[\\/][^"'\s]+\.mjs)["']?/g)) {
-      const script = m[1];
+    // Quoted forms first: a project path may hold a space, and stopping at whitespace kept only
+    // the tail (`entreno/.rsc/x.mjs`), which then resolved against the cwd and read as missing (#283).
+    for (const m of cmd.matchAll(SCRIPT_RE)) {
+      const script = m[1] ?? m[2] ?? m[3];
       if (!existsSync(script)) seen.add(script);
     }
   }

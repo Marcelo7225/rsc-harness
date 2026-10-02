@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { doctor } from '../scripts/doctor.js';
+import { doctor, missingHookScripts } from '../scripts/doctor.js';
 
 function tmp() { return mkdtempSync(join(tmpdir(), 'rsc-doctorhooks-')); }
 
@@ -67,4 +67,64 @@ test('a wired script named through the project variable is found, not reported m
     hooks: { SessionStart: [{ hooks: [{ type: 'command', command: 'node "${CLAUDE_PROJECT_DIR}/.rsc/session-start.mjs"' }] }] },
   }));
   assert.equal(doctor({ target: 'claude', home: d, cwd: d }).hookWired, true);
+});
+
+// #283 — the script path was pulled out of the command with a pattern that stopped at the first
+// whitespace, so in a project whose path has a space every wired script read as missing: a false
+// HIGH finding and, since #277, a non-zero exit that fails any CI built on `doctor`.
+function spaced() {
+  const d = join(mkdtempSync(join(tmpdir(), 'rsc-doctorhooks-')), 'app entreno');
+  mkdirSync(join(d, '.claude', 'skills'), { recursive: true });
+  mkdirSync(join(d, '.rsc'), { recursive: true });
+  writeFileSync(join(d, '.claude', 'skills', '.rsc-state.json'), JSON.stringify({ skills: {} }));
+  return d;
+}
+const wire = (d, ...commands) => writeFileSync(join(d, '.claude', 'settings.json'), JSON.stringify({
+  hooks: { UserPromptSubmit: [{ hooks: commands.map((command) => ({ type: 'command', command })) }] },
+}));
+
+test('#283 — scripts under a spaced project path are found, double- or single-quoted', () => {
+  const d = spaced();
+  writeFileSync(join(d, '.rsc', 'one.mjs'), '// present');
+  writeFileSync(join(d, '.rsc', 'two.mjs'), '// present');
+  wire(d,
+    'node "${CLAUDE_PROJECT_DIR}/.rsc/one.mjs"',
+    `node '${join(d, '.rsc', 'two.mjs')}'`,
+    'node "${CLAUDE_PROJECT_DIR}/.rsc/one.mjs" && node "${CLAUDE_PROJECT_DIR}/.rsc/two.mjs"');
+  assert.deepEqual(missingHookScripts({ target: 'claude', home: d, cwd: d }), []);
+  assert.equal(doctor({ target: 'claude', home: d, cwd: d }).hookWired, true);
+});
+
+test('#283 — a script really missing under a spaced path is reported by its whole path', () => {
+  const d = spaced();
+  wire(d, 'node "${CLAUDE_PROJECT_DIR}/.rsc/gone.mjs"');
+  assert.deepEqual(missingHookScripts({ target: 'claude', home: d, cwd: d }), [join(d, '.rsc', 'gone.mjs')]);
+});
+
+test('#283 — an unquoted path without spaces still resolves as before', () => {
+  const d = tmp();
+  mkdirSync(join(d, '.claude', 'skills'), { recursive: true });
+  wire(d, `node ${join(d, '.rsc', 'gone.mjs')} x`);
+  assert.deepEqual(missingHookScripts({ target: 'claude', home: d, cwd: d }), [join(d, '.rsc', 'gone.mjs')]);
+});
+
+// A whole shell snippet in quotes is not a path. Reading `"node …/a.mjs && node …/b.mjs"` as one
+// would report a present script missing — the same false alarm #283 removes, from the other side.
+test('#283 — a quoted shell snippet is read script by script, not as one path', () => {
+  const d = spaced();
+  writeFileSync(join(d, '.rsc', 'a.mjs'), '// present');
+  wire(d,
+    `bash -c "node '\${CLAUDE_PROJECT_DIR}/.rsc/a.mjs' && node '\${CLAUDE_PROJECT_DIR}/.rsc/a.mjs'"`,
+    `sh -c 'node "\${CLAUDE_PROJECT_DIR}/.rsc/a.mjs"'`,
+    `sh -c 'node "\${CLAUDE_PROJECT_DIR}/.rsc/gone.mjs"'`);
+  assert.deepEqual(missingHookScripts({ target: 'claude', home: d, cwd: d }), [join(d, '.rsc', 'gone.mjs')]);
+});
+
+test('#283 — a quoted snippet without a spaced path still yields each script', () => {
+  const d = tmp();
+  mkdirSync(join(d, '.claude', 'skills'), { recursive: true });
+  mkdirSync(join(d, '.rsc'), { recursive: true });
+  writeFileSync(join(d, '.rsc', 'a.mjs'), '// present');
+  wire(d, `bash -c "node ${d}/.rsc/a.mjs && node ${d}/.rsc/b.mjs"`, `sh -c 'node ${d}/.rsc/a.mjs'`);
+  assert.deepEqual(missingHookScripts({ target: 'claude', home: d, cwd: d }), [join(d, '.rsc', 'b.mjs')]);
 });
