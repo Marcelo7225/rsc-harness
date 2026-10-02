@@ -65,8 +65,10 @@ function selloStatus(root) {
 //
 // Hookless targets get an empty list by construction: their always-on surface is a
 // markdown block with no script behind it, so there is nothing that can go missing.
+// A quoted span counts as a path only if it starts like one and holds no shell operator: a whole
+// `sh -c '…'` snippet is not a path, and reading it as one reports a present script missing.
 const SCRIPT_RE =
-  /"([^"]*[\\/]\.rsc[\\/][^"]+?\.mjs)"|'([^']*[\\/]\.rsc[\\/][^']+?\.mjs)'|([^"'\s]*[\\/]\.rsc[\\/][^"'\s]+\.mjs)/g;
+  /"((?:[A-Za-z]:)?[\\/~][^"&;|]*[\\/]\.rsc[\\/][^"\s]+?\.mjs)"|'((?:[A-Za-z]:)?[\\/~][^'&;|]*[\\/]\.rsc[\\/][^'\s]+?\.mjs)'|([^"'\s]*[\\/]\.rsc[\\/][^"'\s]+\.mjs)/g;
 export function missingHookScripts({ target, home = homedir(), cwd = process.cwd() } = {}) {
   if (HOOKLESS_TARGETS.has(target)) return [];
   const file = targetPaths(target, home, cwd).hookTarget;

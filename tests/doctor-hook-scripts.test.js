@@ -107,3 +107,24 @@ test('#283 — an unquoted path without spaces still resolves as before', () => 
   wire(d, `node ${join(d, '.rsc', 'gone.mjs')} x`);
   assert.deepEqual(missingHookScripts({ target: 'claude', home: d, cwd: d }), [join(d, '.rsc', 'gone.mjs')]);
 });
+
+// A whole shell snippet in quotes is not a path. Reading `"node …/a.mjs && node …/b.mjs"` as one
+// would report a present script missing — the same false alarm #283 removes, from the other side.
+test('#283 — a quoted shell snippet is read script by script, not as one path', () => {
+  const d = spaced();
+  writeFileSync(join(d, '.rsc', 'a.mjs'), '// present');
+  wire(d,
+    `bash -c "node '\${CLAUDE_PROJECT_DIR}/.rsc/a.mjs' && node '\${CLAUDE_PROJECT_DIR}/.rsc/a.mjs'"`,
+    `sh -c 'node "\${CLAUDE_PROJECT_DIR}/.rsc/a.mjs"'`,
+    `sh -c 'node "\${CLAUDE_PROJECT_DIR}/.rsc/gone.mjs"'`);
+  assert.deepEqual(missingHookScripts({ target: 'claude', home: d, cwd: d }), [join(d, '.rsc', 'gone.mjs')]);
+});
+
+test('#283 — a quoted snippet without a spaced path still yields each script', () => {
+  const d = tmp();
+  mkdirSync(join(d, '.claude', 'skills'), { recursive: true });
+  mkdirSync(join(d, '.rsc'), { recursive: true });
+  writeFileSync(join(d, '.rsc', 'a.mjs'), '// present');
+  wire(d, `bash -c "node ${d}/.rsc/a.mjs && node ${d}/.rsc/b.mjs"`, `sh -c 'node ${d}/.rsc/a.mjs'`);
+  assert.deepEqual(missingHookScripts({ target: 'claude', home: d, cwd: d }), [join(d, '.rsc', 'b.mjs')]);
+});
