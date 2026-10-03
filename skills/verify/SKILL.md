@@ -19,16 +19,13 @@ Not this phase: still writing tests or production code → `../implement/SKILL.m
 
 ## Model tier — `balanced` (opt-in routing)
 
-This phase's default model tier is **`balanced`** — it runs the checks and interprets failures with judgment. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch per the accompaniment dial when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
+This phase's default model tier is **`balanced`** — it runs the checks and interprets failures with judgment. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch in one line when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
 
-## Read the room first (accompaniment dial)
+## Read the room first (register)
 
-Before running anything, read `02-DOCS/wiki/harness/user-profile.md` for the technical + accompaniment level; no profile yet → default to non-technical framing. The verdict itself (pass / fail per item) never changes with the dial — only how much you explain around it.
+Before running anything, read `technical_level` in `02-DOCS/wiki/harness/user-profile.md`; no profile yet → use analogies. The verdict itself (pass / fail per item) never changes with the register — only the words around it.
 
-- **L0** — run the gate, show pass/fail and the one-line failing summary. Minimal words.
-- **L1** — add one line of *why* per failing check.
-- **L2** — narrate each gate (what lint/type/test/audit checks and why it matters here).
-- **L3** — explain every result, what each acceptance criterion means in plain language, and what the user should decide next.
+Report in the `orient` voice: pass/fail per gate, then one line of *why* per failing check, then what the user should decide next. For a `non-technical` reader, say what each failing check protects with an everyday analogy.
 
 ## The gate (run in this order)
 
@@ -229,5 +226,5 @@ A **PASS** record is the entry ticket to the next phase: **`../review/SKILL.md`*
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente, terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
 

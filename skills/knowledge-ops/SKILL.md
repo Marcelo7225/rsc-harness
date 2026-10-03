@@ -13,7 +13,7 @@ origin: risco
 ## Before you touch anything
 
 1. **Confirm `02-DOCS/wiki/` exists.** If there is no wiki, stop and say: "Run `harness` to build the `02-DOCS/` wiki first, then come back to garden it." Why: this skill operates an existing engine; it never creates one. See `../harness/SKILL.md`.
-2. **Read `wiki/harness/user-profile.md`** to set your verbosity (the harness accompaniment dial, L0–L3). Why: a non-technical owner wants decisions narrated; an expert wants terse diffs.
+2. **Read `wiki/harness/user-profile.md`** for `technical_level`, which sets your register (technical terms, or plain words with analogies). Why: a non-technical owner needs each decision explained with an analogy; a technical one reads the term directly. Either way, speak in the `orient` voice: short, and every answer understandable on its own.
 3. **Read `wiki/index.md` and `wiki/scores.json` before any edit.** Why: you garden from the map and the score signal, never blind. `scores.json` tells you what is bloated, orphaned, or stale.
 
 If `wiki/log.md` shows a Maintenance Pass ran in the last few minutes, let it finish — do not race the automation.

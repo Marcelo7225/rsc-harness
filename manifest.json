@@ -1,7 +1,7 @@
 {
-  "version": "2.0.20",
+  "version": "2.1.0-0",
   "counts": {
-    "skills": 273,
+    "skills": 270,
     "agents": 33,
     "commands": 53,
     "fixedCommands": 20
@@ -460,30 +460,6 @@
         "customer-support"
       ],
       "profiles": []
-    },
-    {
-      "id": "bro",
-      "description": "Use whenever the user asks to make an answer or draft sound human, natural, plain-spoken or less AI-written — including a terse bro after the last response. Rewrites or drafts in the same language while preserving meaning, facts and channel. NOT a reusable brand voice (that is `brand-voice`), NOT translation (that is `translation-l10n`).",
-      "tags": [
-        "bro",
-        "human-writing",
-        "humano",
-        "plain-language",
-        "natural-language",
-        "rewrite",
-        "no-jargon"
-      ],
-      "recommends": [
-        "unslop",
-        "brand-voice",
-        "technical-writing",
-        "translation-l10n"
-      ],
-      "profiles": [
-        "minimal",
-        "core",
-        "full"
-      ]
     },
     {
       "id": "building-agents",
@@ -1600,29 +1576,6 @@
       "profiles": []
     },
     {
-      "id": "eli5",
-      "description": "Use when a topic must be explained from zero to someone who knows nothing about it: one page, big pictures, very few words, everyday analogies, no jargon and nothing assumed. NOT the smallest in-conversation visual for someone already following (that is `show-me`), NOT a course with exercises (that is `course-builder`).",
-      "tags": [
-        "eli5",
-        "explain",
-        "beginner",
-        "simple",
-        "analogy",
-        "no-jargon",
-        "explicame"
-      ],
-      "recommends": [
-        "show-me",
-        "technical-writing",
-        "course-builder"
-      ],
-      "profiles": [
-        "minimal",
-        "core",
-        "full"
-      ]
-    },
-    {
       "id": "elixir",
       "description": "Use when writing or refactoring Elixir/OTP on the BEAM — GenServers, supervision trees and restart strategies, pattern matching, mix projects and releases — or when processes misbehave (restart loops, mailbox growth, call timeouts). NOT a Phoenix web app, LiveView, Ecto or channels (that is `phoenix`).",
       "tags": [
@@ -2475,7 +2428,7 @@
     },
     {
       "id": "init",
-      "description": "Use when starting from nothing or pointing rsc at an existing project — the front door. Gauges technical level and the accompaniment dial first (non-technical by default), discovers what the user wants to build or govern (any stack, or a non-code harness: company/ops, research, knowledge, content), writes the profile to 02-DOCS, and installs the skills discovery justified. NOT the scaffolder (that is `harness`), NOT a stack skill.",
+      "description": "Use when starting from nothing or pointing rsc at an existing project — the front door. First asks one question — technical terms or analogies (analogies by default) — then discovers what the user wants to build or govern (any stack, or a non-code harness: company/ops, research, knowledge, content), writes the profile to 02-DOCS, and installs the skills discovery justified. NOT the scaffolder (that is `harness`), NOT a stack skill.",
       "tags": [
         "init",
         "bootstrap",
@@ -3448,13 +3401,16 @@
     },
     {
       "id": "orient",
-      "description": "Always-on. The brújula: close every turn by situating the person — where they are, what just happened, why it mattered, and the next step as a question, never a dead end. Reads the accompaniment and technical dials from 02-DOCS and calibrates how much it explains, rewriting the dial when the user asks for more or less. NOT the missing-skill installer (that is `suggest`).",
+      "description": "Always-on. How the harness talks to the person: STE-style short sentences, every answer understandable on its own, technical or with analogies by the profile, and a ladder (text → diagram → HTML page → video on request) when the person does not follow. Closes every turn with the brújula. Fires on 'no entiendo', 'explícamelo', 'enséñame', 'dibújamelo', 'explain it from zero', '¿dónde estamos?'. NOT the missing-skill installer (that is `suggest`), NOT a text the user sends to others (that is `unslop`).",
       "tags": [
         "orient",
-        "guide",
+        "voice",
+        "ste",
+        "explain",
+        "diagram",
+        "eli5",
+        "show-me",
         "compass",
-        "dial",
-        "meta",
         "always-on"
       ],
       "recommends": [],
@@ -4316,7 +4272,7 @@
     },
     {
       "id": "sdd",
-      "description": "Use when you want a disciplined, spec-driven path from a feature idea to shipped, verified software — the SDD dispatcher and front door, in any language. States the method, reads the accompaniment dial from 02-DOCS, and routes to the right phase: constitution -> specify -> clarify -> plan -> tasks -> analyze -> implement -> verify -> review -> ship, with debug / worktrees / parallel on demand. Use it to start a feature, to govern the whole flow, or when unsure which phase you are in. NOT a single phase itself (it dispatches), NOT the workspace harness (that is `harness`), NOT a stack build skill.",
+      "description": "Use when you want a disciplined, spec-driven path from a feature idea to shipped, verified software — the SDD dispatcher and front door, in any language. States the method, reads the user's register from 02-DOCS, and routes to the right phase: constitution -> specify -> clarify -> plan -> tasks -> analyze -> implement -> verify -> review -> ship, with debug / worktrees / parallel on demand. Use it to start a feature, to govern the whole flow, or when unsure which phase you are in. NOT a single phase itself (it dispatches), NOT the workspace harness (that is `harness`), NOT a stack build skill.",
       "tags": [
         "sdd",
         "spec",
@@ -4541,31 +4497,6 @@
         "analytics"
       ],
       "profiles": []
-    },
-    {
-      "id": "show-me",
-      "description": "Use when the user needs to see how something works instead of reading about it: picks the smallest visual that carries the point — pseudocode, call tree, file tree, component tree, Mermaid, a shaped diff, or one HTML page. NOT visual identity (that is `design-loop`), NOT slides (that is `presentations`), NOT a from-zero explainer (that is `eli5`).",
-      "tags": [
-        "show-me",
-        "explain",
-        "diagram",
-        "visual",
-        "mermaid",
-        "diff",
-        "call-tree",
-        "ensename"
-      ],
-      "recommends": [
-        "eli5",
-        "presentations",
-        "technical-writing",
-        "codebase-onboarding"
-      ],
-      "profiles": [
-        "minimal",
-        "core",
-        "full"
-      ]
     },
     {
       "id": "simplify-code",
@@ -5264,18 +5195,20 @@
     },
     {
       "id": "unslop",
-      "description": "Use when a written text must be audited against a named catalogue of AI tells before it ships: puffery, `not just X but Y`, the rule of three, em dashes, filler, hedging, abstract metaphor nouns. Names each hit and fixes it. NOT the register rewrite in the user's own voice (that is `bro`), NOT a reusable voice guide (that is `brand-voice`).",
+      "description": "Use when a text that leaves the session (email, post, README, message, landing copy) must sound like a person and carry no AI tells: rewrites it in the user's language fitted to the channel and relationship, and audits it against a named catalogue of tells (puffery, `not just X but Y`, rule of three, em dashes, filler, hedging). Fires on 'bro', 'hazlo más humano', 'que no suene a IA', 'más natural', 'unslop this'. NOT how the harness talks to the user (that is `orient`), NOT a reusable voice guide (that is `brand-voice`).",
       "tags": [
         "unslop",
+        "human-writing",
+        "humano",
+        "natural-language",
+        "plain-language",
         "ai-tells",
         "editing",
-        "audit",
-        "slop",
-        "publish-check",
+        "rewrite",
+        "bro",
         "revisar-texto"
       ],
       "recommends": [
-        "bro",
         "brand-voice",
         "technical-writing"
       ],

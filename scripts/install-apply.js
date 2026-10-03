@@ -13,6 +13,7 @@ import {
 import { projectOptOuts } from '../targets/opt-outs.js';
 import { readState, writeState } from './lib/state.js';
 import { withDefaultSkillFloor } from './lib/default-skill-floor.js';
+import { isRetired, replaceRetired } from './lib/retired-skills.js';
 import { readManifest, writeManifest } from './lib/manifest-file.js';
 import { createBackup } from './lib/backups.js';
 import {
@@ -196,7 +197,9 @@ export function recordInManifest({ cwd, target, skillIds, agentIds = [], catalog
     // `dropTarget` is the one exception — a MOVE, where leaving the old one declared would
     // have every clone rebuild a harness that was deliberately abandoned.
     targets: union(prev.targets, [target]).filter((t) => t !== dropTarget),
-    skills: union(prev.skills, skillIds),
+    // Through the retirement map: the living list must stop naming a skill the catalog no longer
+    // ships, or every clone would go looking for it.
+    skills: replaceRetired(union(prev.skills, skillIds)).sort(),
     agents: union(prev.agents, agentIds),
     ownSkills: prev.ownSkills || [],
     catalogVersion,
@@ -215,7 +218,23 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
   const fromScratch = !existsSync(join(cwd, '.rsc'));
   const paths = targetPaths(target, home, cwd);
   const plan = planInstall({ skillIds, target, home, cwd, hooks: policy?.alwaysOn !== false });
-  const managedPaths = managedPathsForInstall({ skillIds, agentIds, target, home, cwd, policy });
+  // What this pass prunes, decided BEFORE the backup so the backup holds it: a skill link this
+  // target's state proves is ours and that is no longer wanted (always for a retired skill, and for
+  // any skill when a plan governs), and the shared base of a retired skill once no other assistant
+  // in this project still records it. Taking a base another assistant links to would leave that
+  // assistant dangling until its own sync.
+  const priorState = readState(paths.stateFile);
+  const prunedSkills = Object.keys(priorState.skills || {})
+    .filter((id) => !skillIds.includes(id) && (policy || isRetired(id)));
+  const stillRecordedElsewhere = (id) => TARGET_IDS.some((other) => other !== target
+    && Object.hasOwn(readState(targetPaths(other, home, cwd).stateFile).skills || {}, id));
+  const prunedBases = Object.keys(readBaseVersions(cwd))
+    .filter((id) => isRetired(id) && !skillIds.includes(id) && !stillRecordedElsewhere(id));
+  const managedPaths = [...new Set([
+    ...managedPathsForInstall({ skillIds, agentIds, target, home, cwd, policy }),
+    ...prunedSkills.map((id) => paths.skillDir(id)),
+    ...prunedBases.map((id) => baseDir(id, cwd)),
+  ])];
   if (dryRun) return { dryRun: true, skills: skillIds, agents: agentIds, paths: managedPaths };
   // Rebuild the declared decisions first, so everything below (the agent tier especially) reads
   // the state the team declared rather than the default it would otherwise assume.
@@ -227,12 +246,17 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
   // syncs — a single global marker would be bumped by the first target and make later
   // targets skip refreshing their exclusive skills' bases.
   const baseVersions = readBaseVersions(cwd);
-  if (policy) {
-    for (const id of Object.keys(state.skills || {})) {
-      if (skillIds.includes(id)) continue;
-      rmSync(paths.skillDir(id), { recursive: true, force: true });
-      delete state.skills[id];
-    }
+  // A retired skill is pruned even without a governing plan: nothing can install it any more, so
+  // keeping it would only leave a dead copy behind. Ownership is proven by the state file — a
+  // same-named directory rsc never recorded is somebody's own work and is not touched.
+  for (const id of prunedSkills) {
+    rmSync(paths.skillDir(id), { recursive: true, force: true });
+    delete state.skills[id];
+  }
+  // Its shared base too, proven ours by the base-version ledger rather than by its name.
+  for (const id of prunedBases) {
+    rmSync(baseDir(id, cwd), { recursive: true, force: true });
+    delete baseVersions[id];
   }
   for (const step of plan) {
     if (step.kind === 'skill') {
@@ -528,7 +552,9 @@ export function removeTargetInstall({ target, home, cwd = process.cwd() }) {
   ];
   const declaredLocationsAreExact = Object.entries(state.skills || {}).every(([id, entry]) =>
     /^[a-z0-9][a-z0-9._-]*$/i.test(id)
-    && existsSync(join(ROOT, 'skills', id))
+    // A retired id no longer has a catalog directory, but `paths.skillDir` below still proves where
+    // it lives — refusing it made every re-onboard that drops an old assistant loop on recovery.
+    && (existsSync(join(ROOT, 'skills', id)) || isRetired(id))
     && (entry.files || []).every((file) => resolve(file) === resolve(paths.skillDir(id))))
     && (state.agents || []).every((name) => {
       if (!allAgentNames().includes(name)) return false;
@@ -607,9 +633,12 @@ export async function syncInstalled({ target, home, cwd = process.cwd(), dryRun 
   // then rebuilt from a governed list that predated it and pruned the difference, recursively.
   // Reported by a user and reproduced 2026-09-17. The receipt stays untouched, because it is
   // hash-checked against what the user accepted and is not a log of what happened since.
-  const declaredRaw = governedSkills
+  //
+  // Read through the retirement map: a declaration older than the retirement of eli5, show-me and
+  // bro names skills the catalog no longer ships, and the receipt that names them is never rewritten.
+  const declaredRaw = replaceRetired(governedSkills
     ? [...new Set([...governedSkills, ...(manifest?.skills || [])])].sort()
-    : (ids.length ? ids : (manifest?.skills || []));
+    : (ids.length ? ids : (manifest?.skills || []))).sort();
   // A declaration is frozen at the moment it was written, so a skill the catalog later makes
   // mandatory never reaches an existing harness: `add` and `install` apply the floor, sync did
   // not, and sync is the only one an upgrade runs. 2.0.0 shipped the three-lane decisor inside

@@ -46,10 +46,11 @@ The **harness** is the control plane of a workspace. A workspace need not be cod
 
 ## How the harness talks to the user
 
-Read `02-DOCS/wiki/harness/user-profile.md` before you start and adapt verbosity and question count
-to the `technical_level` and `accompaniment_level` you find. L0 means terse and almost silent; L3
-means explain everything and ask a lot. No profile yet → assume non-technical, and let `init` run
-first contact (it owns the two gauging questions and the dial; do not re-ask them here).
+Read `02-DOCS/wiki/harness/user-profile.md` before you start. Its `technical_level` picks the
+register: technical terms used directly, or plain words with everyday analogies. Everything else is
+the one `orient` voice: short sentences, and every answer understandable on its own. No profile yet
+→ use analogies, and let `init` run first contact (it owns the one register question; do not re-ask
+it here).
 
 Two files carry the state, both indexed from the root `CLAUDE.md` Knowledge map under `harness/`:
 `user-profile.md` for the living portrait of the user, and `decisions.md` as an append-only log —
@@ -66,9 +67,9 @@ risks, commands. It is what lets the next agent resume without trusting chat his
 
 For any significant decision (deploy target, database, hosting, tooling), gather the requirements
 that actually drive the choice *before* presenting anything — for a deploy: expected and concurrent
-users, budget, data residency, the team's ops comfort, scaling needs. At L0 ask only the few that
-change the answer; at L3 ask all of them, one at a time. Then present exactly three options with
-honest trade-offs, recommend one in language matched to their level, and log it.
+users, budget, data residency, the team's ops comfort, scaling needs. Ask only the ones that change
+the answer, in one short batch. Then present exactly three options with honest trade-offs, recommend
+one in their register, and log it.
 
 The canonical deploy trio is Hetzner+Coolify (cheap, total control, self-managed), Vercel (zero-ops,
 scales itself, costly at scale), and a third chosen from their answers. Apply the pattern yourself
@@ -241,7 +242,7 @@ Print a final report:
 Once the structure stands, make sure the workspace has the rsc skills its stack and goals call for — detection here, not just at `init`:
 
 1. **Detect → propose.** From the detected stacks/providers and the user's goals in `02-DOCS/wiki/harness/`, build a shortlist. Ask the CLI if unsure: `npx @ericrisco/rsc consult "<stack + goal>"`. (Map e.g. detected Stripe→`stripe`, Postgres→`postgresdb`, Next→`nextjs`+`design`, a company/ops focus→`finance-ops`/`invoicing`/`gdpr-privacy`…)
-2. **Confirm, then install yourself.** Show the shortlist with a one-line *why* each (matched to the dial), get a one-word confirm, and run it via Bash — installing writes to their environment, so always confirm first:
+2. **Confirm, then install yourself.** Show the shortlist with a one-line *why* each (in their register), get a one-word confirm, and run it via Bash — installing writes to their environment, so always confirm first:
    ```bash
    npx @ericrisco/rsc add <skill> [<skill> ...]
    ```
@@ -297,5 +298,5 @@ This skill is fully self-contained. No external sub-skill required.
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente, terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
 

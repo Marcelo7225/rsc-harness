@@ -55,7 +55,7 @@ should_not_trigger:
 capability:
   - scenario: "A user says: 'I keep telling the agent how to write our PR descriptions. Make that into a skill called pr-describe.' Show how author-skill produces it to the rsc bar."
     must_include:
-      - "Reads 02-DOCS/wiki/harness/user-profile.md for the accompaniment dial (or asks the two gauging questions if absent) and adapts verbosity"
+      - "Reads technical_level from 02-DOCS/wiki/harness/user-profile.md (or asks once 'technical or with analogies?' if absent) and explains in that register, without any verbosity level"
       - "Confirms scope is one job and checks no existing sibling already owns PR-description authoring before creating a new skill"
       - "Drafts the description FIRST: third-person, 'Use when…' lead, only the capabilities that discriminate it from its nearest sibling, a 'NOT … (that is `sibling`)' boundary, valid single-line quoted YAML aiming <=350 chars (1024 hard limit), with origin: risco"
       - "Produces the smallest body that still routes (400 lines is a ceiling, not a target) with progressive disclosure — long/branch-specific detail pushed to references/ and pointed to inline, not an orphaned references/ folder"

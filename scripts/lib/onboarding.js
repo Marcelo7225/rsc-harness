@@ -5,12 +5,12 @@ import { TARGET_IDS } from '../../targets/index.js';
 import { resolveAgentNames } from '../../targets/agents.js';
 import { loadManifest, skillsForProfile } from './manifest.js';
 import { readManifest } from './manifest-file.js';
+import { replaceRetired } from './retired-skills.js';
 import { managedPathsForInstall } from '../install-apply.js';
 
 export const ONBOARDING_SCHEMA_VERSION = 1;
 export const ONBOARDING_VALUES = Object.freeze({
   technicalLevel: ['non-technical', 'mixed', 'technical'],
-  accompaniment: ['L0', 'L1', 'L2', 'L3'],
   projectKind: ['software', 'operations', 'research', 'content', 'mixed'],
   softwareScope: ['small', 'growing', 'complex'],
 });
@@ -33,7 +33,9 @@ export function normalizeOnboarding(raw = {}) {
   const schemaVersion = Number(raw.schemaVersion ?? ONBOARDING_SCHEMA_VERSION);
   if (schemaVersion !== ONBOARDING_SCHEMA_VERSION) throw new Error(`invalid schemaVersion: expected ${ONBOARDING_SCHEMA_VERSION}`);
   const technicalLevel = oneOf('technical-level', clean(raw.technicalLevel).toLowerCase(), ONBOARDING_VALUES.technicalLevel);
-  const accompaniment = oneOf('accompaniment', clean(raw.accompaniment).toUpperCase(), ONBOARDING_VALUES.accompaniment);
+  // `accompaniment` is retired: `technical_level` alone sets the register (technical, or with
+  // analogies). Old scripts still send it, so it is ignored here — not validated, not recorded, and
+  // therefore not part of the plan id either.
   const projectKind = oneOf('project-kind', clean(raw.projectKind).toLowerCase(), ONBOARDING_VALUES.projectKind);
   const goal = clean(raw.goal).replace(/\s+/g, ' ');
   if (!goal) throw new Error('invalid goal: a concrete goal is required');
@@ -48,7 +50,6 @@ export function normalizeOnboarding(raw = {}) {
   return {
     schemaVersion,
     technicalLevel,
-    accompaniment,
     projectKind,
     goal,
     ...(needsScope ? { softwareScope } : {}),
@@ -223,7 +224,7 @@ export function buildOnboardingPlan(record, evidence) {
   // `readManifest` returns null on a first install, which is the most common path of all; reaching
   // through that null would have broken every fresh install in order to protect updates.
   const inAnyProfile = new Set(catalog.skills.filter((s) => (s.profiles || []).length).map((s) => s.id));
-  const declared = (readManifest(evidence.root ?? process.cwd())?.skills ?? [])
+  const declared = replaceRetired(readManifest(evidence.root ?? process.cwd())?.skills ?? [])
     .filter((id) => catalogIds.has(id) && !inAnyProfile.has(id));
   const skills = [...new Set([...skillsForProfile(catalog, profile), ...detectedSkills, ...declared])].sort();
   const baseAgents = practisesSdd;
@@ -380,7 +381,6 @@ export function recommendDeferredComponents(acceptedPlan, currentEvidence) {
 export function missingOnboardingFields(raw = {}) {
   const missing = [];
   if (!clean(raw.technicalLevel)) missing.push('technical-level');
-  if (!clean(raw.accompaniment)) missing.push('accompaniment');
   if (!clean(raw.projectKind)) missing.push('project-kind');
   if (!clean(raw.goal)) missing.push('goal');
   const kind = clean(raw.projectKind).toLowerCase();

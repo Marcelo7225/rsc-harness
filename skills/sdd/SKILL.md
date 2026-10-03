@@ -1,6 +1,6 @@
 ---
 name: sdd
-description: "Use when you want a disciplined, spec-driven path from a feature idea to shipped, verified software — the SDD dispatcher and front door, in any language. States the method, reads the accompaniment dial from 02-DOCS, and routes to the right phase: constitution -> specify -> clarify -> plan -> tasks -> analyze -> implement -> verify -> review -> ship, with debug / worktrees / parallel on demand. Use it to start a feature, to govern the whole flow, or when unsure which phase you are in. NOT a single phase itself (it dispatches), NOT the workspace harness (that is `harness`), NOT a stack build skill."
+description: "Use when you want a disciplined, spec-driven path from a feature idea to shipped, verified software — the SDD dispatcher and front door, in any language. States the method, reads the user's register from 02-DOCS, and routes to the right phase: constitution -> specify -> clarify -> plan -> tasks -> analyze -> implement -> verify -> review -> ship, with debug / worktrees / parallel on demand. Use it to start a feature, to govern the whole flow, or when unsure which phase you are in. NOT a single phase itself (it dispatches), NOT the workspace harness (that is `harness`), NOT a stack build skill."
 tags: [sdd, spec, workflow, plan]
 recommends: [sdd-init, constitution, specify]
 profiles: [core, full]
@@ -13,7 +13,7 @@ origin: risco
 
 `sdd` is the **engineering counterpart of the `harness`**. The harness runs the chaos → knowledge loop (inbox → `02-DOCS` wiki). `sdd` runs the **intent → shipped software** loop, and it writes the artifacts of that loop — constitution, specs, plans, decisions — into the same `02-DOCS/wiki/sdd/` so the project's knowledge grows with every feature instead of leaking into chat history.
 
-This skill does **not** do a phase itself. It is the dispatcher: it names the method, reads how much accompaniment you want, tells you which phase you are in, and hands off to the phase skill that owns the work. Each phase skill, when it finishes, points you at the next one — so once you enter the chain you rarely come back here.
+This skill does **not** do a phase itself. It is the dispatcher: it names the method, reads which register you want (technical or with analogies), tells you which phase you are in, and hands off to the phase skill that owns the work. Each phase skill, when it finishes, points you at the next one — so once you enter the chain you rarely come back here.
 
 ## The method in one breath
 
@@ -117,20 +117,16 @@ to `02-DOCS/wiki/sdd/` as it goes, so the work stays reviewable after the fact.
 - **A hard failure** it can't resolve (a red test it can't green → `debug`; an `analyze` contradiction).
 - **Destructive / irreversible / outward-facing actions** — push, merge, delete, secrets. `ship` (PR/merge) still confirms: autopilot drives the **build**, not the **release**.
 
-Run the fan-out on the `developer` subagent as usual, and narrate at the accompaniment dial's volume (L0: near-silent, just show artifacts; L3: explain each phase as it passes). Autopilot changes **when you ask**, never **what gets written** — every artifact and gate-check still happens; you just don't block on a human between them.
+Run the fan-out on the `developer` subagent as usual, and narrate in the `orient` voice: name each phase as it passes and show its artifact, one line each. Autopilot changes **when you ask**, never **what gets written** — every artifact and gate-check still happens; you just don't block on a human between them.
 
-## Read the accompaniment dial first
+## Read the register first
 
-Before dispatching, read `02-DOCS/wiki/harness/user-profile.md` and adapt — exactly as every rsc skill does. The dial sets **how much you explain and how many questions you ask at each gate**, not whether the gates exist.
+Before dispatching, read `technical_level` in `02-DOCS/wiki/harness/user-profile.md` — exactly as every rsc skill does. It picks the register (technical terms, or plain words with analogies); it never changes whether the gates exist. Speak in the `orient` voice:
 
-| Level | At each phase | At gates (clarify / analyze / decisions) |
-| --- | --- | --- |
-| **L0** "cavernícola" | Name the phase, do it, show the artifact. Minimal prose. | Ask only the questions that actually change the outcome. |
-| **L1** "breve" | One line of *why this phase now*. | One-line rationale per question. |
-| **L2** "explica decisiones" | Justify each significant choice as you go. | Walk the trade-offs before the user picks. |
-| **L3** "acompañamiento total" | Explain the phase, why it matters, what it produces. | Ask broadly, teach the SDD reasoning, narrate every decision. |
+- **At each phase:** name the phase, give one line of *why this phase now*, do it, show the artifact.
+- **At gates** (clarify / analyze / decisions): ask only the questions that actually change the outcome, each with its trade-off and a recommendation.
 
-If there is no profile yet, default to **non-technical + ask the two harness gauging questions** (technical level, accompaniment level) before dispatching, and persist them — that is the harness's job and `sdd` honors it.
+If there is no profile yet, use analogies and ask once **"technical or with analogies?"** before dispatching, and persist the answer — that is `init`'s job and `sdd` honors it.
 
 ## Per-phase model routing (opt-in)
 
@@ -144,7 +140,7 @@ execution, light on ship/worktrees/sdd-init).
 It is **off by default** (`models.enabled: false`). When the user opts in, each phase applies it
 two ways: **programmatically** — dispatching `Task`/`parallel` subagents on the tier's model
 (real routing, e.g. Claude Code) — and **advisorily** — announcing the recommended switch at the
-phase boundary, gated by the accompaniment dial, for inline work and assistants that can't switch
+phase boundary, in one line, for inline work and assistants that can't switch
 programmatically. Never switch unasked, never claim a switch a tool can't make, and skip routing
 on trivial one-line changes. The `sdd` dispatcher itself never routes (staying on the session
 model); `parallel` has no fixed tier (each unit inherits the tier of its work). Full protocol,
@@ -234,7 +230,7 @@ Include current phase, active artifacts, last verdict, completed tasks, next ste
 | "I get the feature, I'll just start coding." | That is the failure SDD prevents. At minimum write the spec; the artifact is the contract. |
 | "`sdd` should write the spec itself." | No. `sdd` dispatches. Invoke `specify` — it owns the spec and asks the right questions. |
 | "Clarify and analyze are bureaucracy, skip them." | Skipped gates are where drift hides. Run them; only pass through if the change is genuinely trivial and you say so. |
-| "Profile says L0, so I'll skip the gates to be terse." | L0 changes verbosity, not the method. Fewer words, same gates. |
+| "The user wants it short, so I'll skip the gates to be terse." | Short changes the words, not the method. Fewer words, same gates. |
 | "I'll keep the plan in chat, it's faster." | Chat is not durable. Write it under `02-DOCS/wiki/sdd/` or the next session is blind. |
 | "I'll skip `sdd-init`; I remember the test command." | The runtime contract belongs in `config.yaml`, not memory. |
 | "I'll load every skill into the subagent." | That contaminates context. Use registry -> selected paths -> compact rules. |

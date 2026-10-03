@@ -9,8 +9,28 @@ import { readState } from './state.js';
 import { readManifest, writeManifest } from './manifest-file.js';
 import { encodeGoal, identifyPlan } from './onboarding.js';
 import { createBackup, restoreBackup } from './backups.js';
+import { RETIRED_SKILLS, replaceRetired } from './retired-skills.js';
 
 const sameSet = (a = [], b = []) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+
+/**
+ * A receipt accepted before eli5, show-me and bro were retired still names them, and it cannot be
+ * rewritten — it is hash-checked against what the user accepted. So it is READ through the
+ * retirement: its skills as their successors, and the paths it governed for a retired skill (its
+ * link in each assistant and its base in `.rsc/skills/`) as no longer owed. Otherwise every upgraded
+ * harness would read as drift for having done exactly what the upgrade is meant to do.
+ */
+const acceptedSkills = (plan) => replaceRetired(plan.policy.skills);
+function retiredGovernedPaths(cwd, plan) {
+  const out = new Set();
+  for (const id of Object.keys(RETIRED_SKILLS)) {
+    out.add(`.rsc/skills/${id}`);
+    for (const target of plan.policy?.targets || []) {
+      out.add(relative(cwd, targetPaths(target, undefined, cwd).skillDir(id)).split(sep).join('/'));
+    }
+  }
+  return out;
+}
 
 /**
  * What THIS target should be holding, which is not the same question as what the project decided.
@@ -73,7 +93,6 @@ function recoveryCommand(plan, planId) {
   return [
     'npx @ericrisco/rsc@latest onboard',
     `--technical-level ${record.technicalLevel}`,
-    `--accompaniment ${record.accompaniment}`,
     `--project-kind ${record.projectKind}`,
     `--goal-base64 ${encodeGoal(record.goal)}`,
     ...(record.softwareScope ? [`--software-scope ${record.softwareScope}`] : []),
@@ -83,18 +102,19 @@ function recoveryCommand(plan, planId) {
 }
 
 export function renderOnboardingDocuments(plan, planId) {
-  // `accompaniment_level`, never `accompaniment` (#276). It sits beside `technical_level` in the same
-  // block, and it is the name the nine skill files that read the dial — orient first among them —
-  // have always used. This was the only writer of the short form, which left the dial chosen at
-  // onboarding invisible to the compass.
-  const profile = `---\ntechnical_level: ${plan.record.technicalLevel}\naccompaniment_level: ${plan.record.accompaniment}\nproject_kind: ${plan.record.projectKind}\n---\n\n# User profile\n\nGoal: ${plan.record.goal}\n`;
+  // One dial: `technical_level`. `technical` gets the technical register; `non-technical` and `mixed`
+  // get the one with analogies. The accompaniment dial (`accompaniment_level`, and the older
+  // `accompaniment` before #276) is retired and never written.
+  const profile = `---\ntechnical_level: ${plan.record.technicalLevel}\nproject_kind: ${plan.record.projectKind}\n---\n\n# User profile\n\nGoal: ${plan.record.goal}\n`;
   const rows = plan.decisions.map((d) => `| ${d.kind} | ${d.id} | ${d.state} | ${d.reason} | ${d.reevaluateWhen.join('; ') || '—'} |`).join('\n');
   const installation = `# Accepted harness plan\n\nPlan id: \`${planId}\`\n\n| Kind | Component | Decision | Reason | Reevaluate when |\n| --- | --- | --- | --- | --- |\n${rows}\n`;
   const decisions = `# Harness decisions\n\n- Accepted plan \`${planId}\`.\n- Project kind: ${plan.record.projectKind}.\n- SDD: ${plan.decisions.find((d) => d.id === 'sdd')?.state || 'selected through profile'}.\n`;
   return { profile, installation, decisions };
 }
 
-const PROFILE_DIALS = [['technical_level', 'technicalLevel'], ['accompaniment_level', 'accompaniment']];
+const PROFILE_DIALS = [['technical_level', 'technicalLevel']];
+// The retired accompaniment dial, under both names it ever had. Removed on rewrite; tolerated on read.
+const RETIRED_PROFILE_KEY = /^accompaniment(_level)?:/;
 
 /**
  * The profile is the USER's file; accepting a plan seeds it, it does not own it (#278).
@@ -104,11 +124,10 @@ const PROFILE_DIALS = [['technical_level', 'technicalLevel'], ['accompaniment_le
  * accept erased both, and re-accepting is routine: after an update, after a reassess.
  *
  * So: everything the plan does not own is kept byte for byte. `project_kind` and the goal are facts of
- * the plan and are updated. The two dials are the subtle part — the plan carries them, but after first
- * contact the user adjusts them — so an existing value stands when the plan did not CHANGE it relative
- * to the previous receipt, and an explicit new value (a receipt that said L3, a plan that says L2) is
- * applied. A profile written before the rename carries `accompaniment:`; it is migrated, never
- * duplicated.
+ * the plan and are updated. The dial is the subtle part — the plan carries it, but after first contact
+ * the user adjusts it — so an existing value stands when the plan did not CHANGE it relative to the
+ * previous receipt, and an explicit new value is applied. The retired accompaniment dial is the one
+ * thing taken OUT: its lines are dropped, whichever of its two names they use.
  */
 export function mergeProfile(existing, plan, previousRecord) {
   const fresh = renderOnboardingDocuments(plan, '').profile;
@@ -117,10 +136,7 @@ export function mergeProfile(existing, plan, previousRecord) {
   const block = /^---\n([\s\S]*?)\n---\n?/.exec(text);
   let front = block ? block[1].split('\n') : [];
   let body = block ? text.slice(block[0].length) : text;
-  const has = (key) => front.some((line) => line.startsWith(`${key}:`));
-  front = has('accompaniment_level')
-    ? front.filter((line) => !/^accompaniment:\s/.test(line))
-    : front.map((line) => line.replace(/^accompaniment:(\s)/, 'accompaniment_level:$1'));
+  front = front.filter((line) => !RETIRED_PROFILE_KEY.test(line));
   const get = (key) => front.find((line) => line.startsWith(`${key}:`))?.slice(key.length + 1).trim() || null;
   const set = (key, value) => {
     const at = front.findIndex((line) => line.startsWith(`${key}:`));
@@ -159,7 +175,7 @@ export function verifyOnboarding(cwd, plan, planId) {
   if (identifyPlan(plan) !== planId) differences.push('persisted plan identity differs from its canonical content');
   for (const target of plan.policy.targets) {
     const state = readState(targetPaths(target, undefined, cwd).stateFile);
-    if (!sameSet(Object.keys(state.skills || {}), plan.policy.skills)) differences.push(`${target}: installed skills differ from accepted policy`);
+    if (!sameSet(Object.keys(state.skills || {}), acceptedSkills(plan))) differences.push(`${target}: installed skills differ from accepted policy`);
     if (!sameSet(state.agents || [], expectedAgentsFor(target, plan))) differences.push(`${target}: installed agents differ from accepted policy`);
     if (state.policy?.alwaysOn !== plan.policy.alwaysOn) differences.push(`${target}: always-on policy differs`);
     if (state.policy?.codeHooks !== plan.policy.codeHooks) differences.push(`${target}: code-hook policy differs`);
@@ -169,7 +185,9 @@ export function verifyOnboarding(cwd, plan, planId) {
   for (const name of ['user-profile.md', 'installation-plan.md', 'decisions.md']) {
     if (!existsSync(join(cwd, '02-DOCS', 'wiki', 'harness', name))) differences.push(`missing ${name}`);
   }
-  for (const path of plan.governedPaths || []) {
+  const retiredPaths = retiredGovernedPaths(cwd, plan);
+  const owed = (path) => !retiredPaths.has(path.replace(/\/$/, ''));
+  for (const path of (plan.governedPaths || []).filter(owed)) {
     if (!existsSync(join(cwd, path.replace(/\/$/, '')))) differences.push(`missing governed path ${path}`);
   }
   const manifest = readManifest(cwd);
@@ -177,23 +195,22 @@ export function verifyOnboarding(cwd, plan, planId) {
   const expectedDigests = manifest?.onboarding?.artifactDigests;
   if (!expectedDigests) differences.push('manifest receipt has no governed artifact digests');
   else {
-    const expectedPaths = (plan.governedPaths || []).filter((path) => path !== '.rsc.json' && path !== '.rsc/backups/');
-    if (!sameSet(Object.keys(expectedDigests), expectedPaths)) differences.push('governed artifact digest inventory differs from accepted plan');
+    const expectedPaths = (plan.governedPaths || []).filter((path) => path !== '.rsc.json' && path !== '.rsc/backups/').filter(owed);
+    if (!sameSet(Object.keys(expectedDigests).filter(owed), expectedPaths)) differences.push('governed artifact digest inventory differs from accepted plan');
     for (const path of expectedPaths) {
       if (digestPath(join(cwd, path.replace(/\/$/, ''))) !== expectedDigests[path]) differences.push(`governed content differs at ${path}`);
     }
   }
   const docsDir = join(cwd, '02-DOCS', 'wiki', 'harness');
   const profile = existsSync(join(docsDir, 'user-profile.md')) ? readFileSync(join(docsDir, 'user-profile.md'), 'utf8') : '';
-  // The plan's facts must be exactly there. The dials must be there under their one name with a valid
-  // value — not necessarily the plan's, because a dial the user adjusted and the plan did not change
-  // is theirs (see mergeProfile).
+  // The plan's facts must be exactly there. The dial must be there with a valid value — not
+  // necessarily the plan's, because a dial the user adjusted and the plan did not change is theirs
+  // (see mergeProfile). A leftover accompaniment line is not checked at all: it is retired, and an
+  // old profile that still carries one is not drift.
   for (const line of [`project_kind: ${plan.record.projectKind}`, `Goal: ${plan.record.goal}`]) {
     if (!profile.split('\n').includes(line)) differences.push(`profile content differs: ${line.split(':')[0]}`);
   }
   if (!/^technical_level: (non-technical|mixed|technical)$/m.test(profile)) differences.push('profile content differs: technical_level');
-  if (!/^accompaniment_level: L[0-3]$/m.test(profile)) differences.push('profile content differs: accompaniment_level');
-  if (/^accompaniment: /m.test(profile)) differences.push('profile carries the retired accompaniment key');
   const installation = existsSync(join(docsDir, 'installation-plan.md')) ? readFileSync(join(docsDir, 'installation-plan.md'), 'utf8') : '';
   if (!installation.includes(`Plan id: \`${planId}\``)) differences.push('installation plan identity differs');
   for (const decision of plan.decisions || []) {
@@ -204,7 +221,7 @@ export function verifyOnboarding(cwd, plan, planId) {
   if (!decisions.includes(`Accepted plan \`${planId}\``)) differences.push('decision ledger omits accepted plan');
   // Every planned assistant is declared; an extra one added outside the plan may be too (#278).
   if (!plan.policy.targets.every((t) => (manifest?.targets || []).includes(t))) differences.push('manifest targets differ from accepted policy');
-  if (!sameSet(manifest?.skills || [], plan.policy.skills)) differences.push('manifest skills differ from accepted policy');
+  if (!sameSet(replaceRetired(manifest?.skills || []), acceptedSkills(plan))) differences.push('manifest skills differ from accepted policy');
   if (!sameSet(manifest?.agents || [], plan.policy.agents || [])) differences.push('manifest agents differ from accepted policy');
   return differences;
 }

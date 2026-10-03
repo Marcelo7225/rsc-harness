@@ -33,12 +33,11 @@ announcement rules. Routing off or no profile → honor the session model silent
 
 ## Read the harness profile first
 
-Read `02-DOCS/wiki/harness/user-profile.md` before producing anything and match
-the accompaniment dial: **L0** emit the task table and nothing else; **L1** add
-one line of *why this slicing* above it; **L2** justify the ordering and the
-parallel markers as you go, flagging the risky tasks; **L3** walk each dependency
-and confirm the done-checks make sense to the user before writing. No profile →
-assume non-technical and let `init` gauge the level; never invent one.
+Read `02-DOCS/wiki/harness/user-profile.md` before producing anything: its
+`technical_level` sets the register (technical terms, or plain words with
+analogies). The task table is always complete. In chat, speak in the `orient`
+voice: one line of *why this slicing*, then flag the risky tasks. No profile →
+use analogies and ask once "technical or with analogies?"; never invent one.
 
 ## Inputs (refuse to start without them)
 
@@ -263,4 +262,4 @@ was to let `analyze` audit it cheaply *before* code exists.
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente, terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)

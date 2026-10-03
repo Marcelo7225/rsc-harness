@@ -15,9 +15,6 @@ are the one piece guaranteed to be present before any other skill is matched. Tw
 1. **Classify every turn into one of three lanes** before anything is written.
 2. **Keep the session equipped** — spot the skill the task needs but the user does not have.
 
-Everything below is what only this layer can do. The method behind each rule lives in the skill that
-owns it; this is the pointer, not the manual.
-
 ---
 
 ## 1. The decisor: classify the turn before acting
@@ -110,8 +107,8 @@ Offer once per session. Never mention any of it when the harness is healthy.
 Before handling the first request of a session, check the workspace:
 
 - No `02-DOCS/wiki/harness/user-profile.md` **and** no `.rsc/.no-harness` → the harness has never
-  been set up here. Invoke `init` first; it opens with the two gauging questions (technical level +
-  accompaniment dial). Do not start the user's task before first contact is done.
+  been set up here. Invoke `init` first; it opens with one question: technical terms or analogies.
+  Do not start the user's task before first contact is done.
 - The user declines a harness here ("sin harness", "solo código") → create an empty
   `.rsc/.no-harness`, confirm in one line, and never auto-start `init` in this repo again.
 - Once the profile exists, this gate is inert. Never re-onboard.
@@ -122,7 +119,4 @@ Define a term at first use; never give a command, flag or path without saying wh
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente,
-terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. Nunca termines
-en seco. Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`.
-(Defiere a este mismo cuerpo, §2, el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, al grano, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a §2 el "¿instalo la skill que falta?".)

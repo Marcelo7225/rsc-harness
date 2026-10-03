@@ -15,14 +15,7 @@ This is the fourth phase of the rsc SDD chain (`constitution` → `specify` → 
 
 **Model tier: `balanced`** — this phase ranks and asks the few high-leverage questions, it does not design architecture. Resolve and apply it per `../sdd/references/model-routing.md`; routing is off unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`.
 
-**Accompaniment dial.** Read the level from `02-DOCS/wiki/harness/user-profile.md` (the dial and the `02-DOCS/wiki/` convention are owned by `../harness/SKILL.md`). Clarify is question-heavy, so the dial matters here more than almost anywhere — it sets **how many questions you ask and how you frame them**. With no profile: default to non-technical framing, ask the two gauging questions (technical level + accompaniment) first, then proceed at the stated level.
-
-| Dial | Ask |
-| --- | --- |
-| **L0** "cavernícola" | ONLY the questions whose answer changes the architecture or scope. Propose safe defaults for everything else and list them tersely as "assumed unless you object". Minimal prose. |
-| **L1** "breve" | The high-leverage batch, one line of *why* per question. |
-| **L2** "explica decisiones" | The batch plus the trade-off behind each option, so the user chooses informed. |
-| **L3** "acompañamiento total" | Walk the taxonomy out loud, explain what each kind of gap costs if left unresolved, ask broadly (including the medium-leverage questions), and teach the *why* as you go. Ideal for non-technical users who benefit from seeing the hidden decisions. |
+**Register.** Read `technical_level` from `02-DOCS/wiki/harness/user-profile.md` (the `02-DOCS/wiki/` convention is owned by `../harness/SKILL.md`). Clarify is question-heavy, so the voice matters here more than almost anywhere. Ask only the questions whose answer changes the build; propose safe defaults for everything else and list them as "assumed unless you object". Each question carries one line of *why* and the trade-off behind each option, in the `orient` voice. For a `non-technical` reader, frame each option with an everyday analogy. With no profile: use analogies and ask once "technical or with analogies?".
 
 ## Read first — the inputs
 
@@ -30,7 +23,7 @@ Clarify never works blind. Before asking a single question, load three things:
 
 1. **The spec.** Read the target spec under `02-DOCS/wiki/sdd/specs/<slug>.md` end to end. If the path wasn't given, find the most recently touched spec or ask which one. Its *Points to clarify* is a **typed** handoff, not a question list — read the types before you plan a single question (below).
 2. **The constitution.** Read `02-DOCS/wiki/sdd/constitution.md` if it exists. Its principles (stack canon, quality bars, conventions) resolve a surprising number of "ambiguities" without bothering the user — if the constitution already fixes the auth method or the data region, that's answered, not open.
-3. **The harness profile.** `02-DOCS/wiki/harness/user-profile.md`, for the dial above.
+3. **The harness profile.** `02-DOCS/wiki/harness/user-profile.md`, for the register above.
 
 Citing what you read ("checked the constitution — auth is already fixed to OAuth, so that's not an open question") shows your work and prevents re-litigating settled decisions.
 
@@ -85,13 +78,13 @@ Run in order. The discipline is: find many candidate gaps, keep only the ones th
 
 2. **Resolve what you already can.** For each candidate, check the constitution and the spec's own later sections before asking the user. Many "gaps" are answered elsewhere. Mark each candidate **resolved-internally** (cite the source), **inferable** (a safe default you'll propose, not silently assume), or **must-ask** (only the user can decide).
 
-3. **Rank by leverage.** Sort the must-ask list by impact: how much does the build change depending on the answer? A question whose two answers lead to two different architectures ranks above a cosmetic one. Cut low-leverage questions — clarify is not an interrogation, it's the *few* questions that matter. Cap the batch to the dial.
+3. **Rank by leverage.** Sort the must-ask list by impact: how much does the build change depending on the answer? A question whose two answers lead to two different architectures ranks above a cosmetic one. Cut low-leverage questions — clarify is not an interrogation, it's the *few* questions that matter.
 
-4. **Ask — one focused batch, sized to the dial.** How you ask determines whether you get a usable answer:
+4. **Ask — one focused batch.** How you ask determines whether you get a usable answer:
    - **Make it a decision, not an essay prompt.** "Should deletes be soft (recoverable, hidden) or hard (gone immediately)? I'd recommend soft because the spec mentions an audit trail — confirm?" beats "How should deletion work?".
    - **Carry your own recommendation** when there's a defensible default, matched to the constitution. The user confirms or overrides — far less effort than authoring from scratch.
    - **Quote the spec.** Anchor each question to the exact line or section it came from, so the user sees *why* it's open.
-   - **One batch, ranked, then stop.** Don't drip questions one at a time over many turns unless the dial is L3; don't dump thirty at once. Then wait: never ask and answer in the same breath, and never assume the user's intent on a must-ask item.
+   - **One batch, ranked, then stop.** Don't drip questions one at a time over many turns; don't dump thirty at once. Then wait: never ask and answer in the same breath, and never assume the user's intent on a must-ask item.
 
 5. **Bake the answers back into the spec.** This is the deliverable — an un-baked answer is a lost answer. For each resolved item, edit the spec in place:
    - Tighten the relevant section with the decided behavior.
@@ -135,7 +128,7 @@ After baking back, the spec line becomes a bounded, testable behavior with accep
 
 ## Exit gate
 
-The gate is passed when the spec, constitution and profile were all read (settled questions cited, not re-asked); **every typed point in the handoff has its declared outcome** (asked / validated / left deferred / graduated), with nothing silently dropped; all ten taxonomy categories were considered; only the build-changing gaps were put to the user, as dial-sized decisions with recommendations; every answer is baked into the spec body with observable acceptance criteria, logged under `## Clarifications` and bounded under `## Out of scope`; and the final re-read opened no new gap.
+The gate is passed when the spec, constitution and profile were all read (settled questions cited, not re-asked); **every typed point in the handoff has its declared outcome** (asked / validated / left deferred / graduated), with nothing silently dropped; all ten taxonomy categories were considered; only the build-changing gaps were put to the user, as one ranked batch of decisions with recommendations; every answer is baked into the spec body with observable acceptance criteria, logged under `## Clarifications` and bounded under `## Out of scope`; and the final re-read opened no new gap.
 
 ## Result envelope
 
@@ -165,4 +158,4 @@ Hand off to **`plan`** — turn the now-sharp spec into a technical implementati
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente, terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)

@@ -1,6 +1,6 @@
 # Discovery — greenfield & brownfield questionnaires (software AND non-code harnesses)
 
-Phase 2 detail. Establish two things: **the state of the ground** (greenfield vs brownfield) and **what the user wants to build or govern**. Record everything to `02-DOCS/wiki/harness/user-profile.md` as you learn it. Ask in batches sized to `accompaniment_level` — never dump every question at once.
+Phase 2 detail. Establish two things: **the state of the ground** (greenfield vs brownfield) and **what the user wants to build or govern**. Record everything to `02-DOCS/wiki/harness/user-profile.md` as you learn it. Ask in short batches — never dump every question at once.
 
 ## First: greenfield vs brownfield (detect, then confirm)
 
@@ -31,7 +31,7 @@ Record `domain: software | non-code-harness`. Both are first-class. A non-code h
 
 ### Greenfield software
 
-Ask in batches. Adapt depth to the dial.
+Ask in short batches, only what changes the plan.
 
 1. **The idea in one sentence.** What does it do, for whom?
 2. **Surfaces.** Which of these does it need? (This drives the skill recommendation.)

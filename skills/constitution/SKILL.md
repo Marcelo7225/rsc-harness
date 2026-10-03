@@ -17,18 +17,15 @@ Not this phase: *what to build* → `../specify/SKILL.md`; the technical approac
 
 ## Model tier — `heavy` (opt-in routing)
 
-This phase's default model tier is **`heavy`** — it sets the project's non-negotiables, the highest-leverage decisions in the repo. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch per the accompaniment dial when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
+This phase's default model tier is **`heavy`** — it sets the project's non-negotiables, the highest-leverage decisions in the repo. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch in one line when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
 
-## Honor the accompaniment dial first
+## Honor the register first
 
-Before asking anything, read `02-DOCS/wiki/harness/user-profile.md` and match its `technical_level` and `accompaniment_level`. No profile yet → default to non-technical and ask the two gauging questions, or point the user at `init`; never assume fluency. The constitution interview adapts:
+Before asking anything, read `02-DOCS/wiki/harness/user-profile.md` and use its `technical_level`: technical terms, or plain words with analogies. No profile yet → use analogies and ask once "technical or with analogies?", or point the user at `init`; never assume fluency. The interview is the same for every reader:
 
-| Level | How this skill behaves |
-|-------|------------------------|
-| L0 — cavernícola | Infer almost everything from the codebase and stack wiki. Ask only the 1-2 questions that genuinely change a principle. Draft, show, ratify. |
-| L1 — breve | One line of *why* per principle proposed. Ask 3-4 questions max. |
-| L2 — explica decisiones | Justify each principle as you propose it; surface trade-offs where a rule constrains the team. |
-| L3 — acompañamiento total | Explain what a constitution is and why each section matters, one kind question at a time, before writing anything. Non-technical framing. |
+- Infer almost everything from the codebase and stack wiki. Ask only the few questions that genuinely change a principle.
+- Give one line of *why* per principle proposed, and the trade-off where a rule constrains the team — in the `orient` voice.
+- For a `non-technical` reader, say in one sentence what a constitution is (the house rules every later step obeys) before drafting.
 
 ## Reconcile before you write (do not duplicate the stack wiki)
 
@@ -58,7 +55,7 @@ Strong — "4. No secret is ever committed; secrets load from 01-TOOLS/<provider
 
 ## The interview (requirements-first, batched)
 
-Gather what you cannot infer, then draft. Ask in batches sized to the accompaniment level (L0: the 1-2 that matter; L3: one at a time, explained). Cover these dimensions — skip any the stack wiki already answers, and confirm rather than re-ask:
+Gather what you cannot infer, then draft. Ask in one short batch — only the questions that matter. Cover these dimensions — skip any the stack wiki already answers, and confirm rather than re-ask:
 
 1. **Stack canon** — languages, frameworks, runtime/versions, package manager. What is fixed vs. open?
 2. **Quality bar** — formatter/linter (must pass clean?), type checking (strict?), test discipline (TDD? coverage floor? what kind of tests gate a merge?).
@@ -95,7 +92,7 @@ The constitution is versioned so `analyze` and `review` can cite "constitution v
 
 - **Semantic-ish versioning.** MAJOR when a principle is removed or reversed (breaks existing work); MINOR when a principle is added or materially tightened; PATCH for wording/clarity with no behavior change.
 - **Amendments are append-only in the log.** Never silently edit a ratified principle — strike it (mark superseded) and add the new one, bump the version, and record date + why in the amendment log.
-- **Ratification.** A new or amended constitution is shown to the user and ratified explicitly before it takes effect. At L0, "ratify" is a quick yes; at L3, walk each change.
+- **Ratification.** A new or amended constitution is shown to the user and ratified explicitly before it takes effect. "Ratify" is an explicit yes on the shown draft; walk each change only if the user asks.
 - **Downstream notice.** When a principle changes mid-project, flag that existing specs/plans may now be inconsistent — `analyze` will catch the drift on the next run.
 
 ## Anti-patterns
@@ -107,13 +104,13 @@ The constitution is versioned so `analyze` and `review` can cite "constitution v
 | "Two stack articles disagree — I'll just pick the stricter one." | Contradictions are findings. Surface them; the user resolves. |
 | "The principle is 'write good code' — everyone knows what that means." | Not checkable, not a principle. Make it testable or drop it. |
 | "I'll rewrite the existing constitution to match what they said today." | Amend, don't overwrite. Strike + add + bump version + log the why. |
-| "No profile yet, I'll assume they're technical and skip the dial." | Default non-technical; ask the two gauging questions or send them to `init`. |
+| "No profile yet, I'll assume they're technical." | Use analogies; ask once "technical or with analogies?" or send them to `init`. |
 | "I'll add a Co-Authored-By so the commit credits the assist." | No. Git authorship is the human's — it's a fixed principle, enforced at `ship`. |
 | "I'll ratify it myself since it's obvious." | The user ratifies. Show the draft, get the explicit yes, then it takes effect. |
 
 ## Checklist before handing off
 
-- [ ] `02-DOCS/wiki/harness/user-profile.md` read; verbosity matched to the dial (or gauging questions asked).
+- [ ] `02-DOCS/wiki/harness/user-profile.md` read; register matched to `technical_level` (or the register question asked).
 - [ ] Reconciliation pass done against every `02-DOCS/wiki/stack/*` article; contradictions surfaced, not auto-resolved.
 - [ ] Every principle is numbered, imperative, testable, and links its enforcer where one exists.
 - [ ] The Definition-of-Done checklist is present (what `verify` runs against).

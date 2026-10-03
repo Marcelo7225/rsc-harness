@@ -5,6 +5,7 @@ import { targetPaths, installedTargets, detectTarget, unwireHook } from '../../t
 import { readState } from './state.js';
 import { readManifest } from './manifest-file.js';
 import { createBackup } from './backups.js';
+import { replaceRetired } from './retired-skills.js';
 import { countHookEntries } from '../doctor.js';
 import { applyInstall, recordInManifest, managedPathsForInstall } from '../install-apply.js';
 
@@ -56,7 +57,7 @@ export function diagnose({ cwd = process.cwd(), target, home = homedir(), invoke
 
   // A clone: the declaration travelled, the materialised skills did not.
   const dangling = installed.filter((id) => !existsSync(paths.skillDir(id)))
-    .concat((manifest?.skills || []).filter((id) => !existsSync(paths.skillDir(id))));
+    .concat(replaceRetired(manifest?.skills || []).filter((id) => !existsSync(paths.skillDir(id))));
   if (dangling.length) {
     out.push(finding('dangling-links', 'restore',
       `${[...new Set(dangling)].join(', ')} are declared but not on disk — what a fresh clone looks like.`,
@@ -130,7 +131,8 @@ export async function repair({ cwd = process.cwd(), target, home = homedir(), dr
   }
 
   const paths = targetPaths(target, home, cwd);
-  const ids = [...new Set([...Object.keys(readState(paths.stateFile).skills || {}), ...(readManifest(cwd)?.skills || [])])];
+  // Through the retirement map: a retired id cannot be rebuilt from the catalog, its successor can.
+  const ids = replaceRetired([...Object.keys(readState(paths.stateFile).skills || {}), ...(readManifest(cwd)?.skills || [])]);
   // The accepted plan governs a repair exactly as it governs a sync. Without it, `wireHook` saw `{}`,
   // read `codeHooks !== false` as true and wired every guard the plan had declined — and the next
   // `sync`, which does pass the policy, took them away again (#274). Restoring is not deciding.

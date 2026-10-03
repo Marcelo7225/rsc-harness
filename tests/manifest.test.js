@@ -41,9 +41,10 @@ test('every recommends id references a real skill', () => {
   }
 });
 
-test('bro is present in every default profile', () => {
+test('unslop is present in every default profile', () => {
+  // It took the place of the retired `bro` as the floor's writing skill.
   const m = buildManifest();
   for (const profile of ['minimal', 'core', 'full']) {
-    assert.ok(skillsForProfile(m, profile).includes('bro'), `${profile} profile must install bro`);
+    assert.ok(skillsForProfile(m, profile).includes('unslop'), `${profile} profile must install unslop`);
   }
 });

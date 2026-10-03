@@ -52,18 +52,17 @@ If you cannot state a requirement without naming the technology, that is a real 
 
 ## Model tier — `balanced` (opt-in routing)
 
-This phase's default model tier is **`balanced`** — it drafts the what/why spec through dialogue, not architecture. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch per the accompaniment dial when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
+This phase's default model tier is **`balanced`** — it drafts the what/why spec through dialogue, not architecture. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch in one line when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
 
-## Read the room first (accompaniment dial)
+## Read the room first (register)
 
-Before asking anything, read `02-DOCS/wiki/harness/user-profile.md` for the technical level and accompaniment level, and adapt:
+Before asking anything, read `technical_level` in `02-DOCS/wiki/harness/user-profile.md`. It picks the register — technical terms, or plain words with everyday analogies — and nothing else; the method is the same for every reader:
 
-- **L0 "cavernícola"** — infer aggressively from the intent and any existing wiki/constitution. Ask only the questions whose answer would change the contract. Draft, show, move on.
-- **L1 "breve"** — one line of *why* per question; ask the few that genuinely matter.
-- **L2 "explica decisiones"** — justify each requirement as you record it; surface the trade-offs you inferred.
-- **L3 "acompañamiento total"** — explain what a spec is and is not, walk every section, ask freely (still one round per frontier, never crossing a dependency), confirm each answer before recording it. Ideal for non-technical users.
+- Infer aggressively from the intent and any existing wiki/constitution. Ask only the questions whose answer would change the contract — one round per frontier, never crossing a dependency.
+- Give one line of *why* per question, in the `orient` voice; record each requirement with the trade-off you inferred.
+- For a `non-technical` reader, say in one sentence what a spec is, and phrase each option as a concrete example to react to.
 
-If no profile exists, default to non-technical framing and keep questions plain. Never assume fluency.
+If no profile exists, use analogies and keep questions plain. Never assume fluency.
 
 ## FRAME before you ask anything — from `idea-refinement`
 
@@ -171,7 +170,7 @@ Run these in order. It is a collaborative dialogue, not a form you fill in silen
 7. WRITE the spec         → 02-DOCS/wiki/sdd/specs/<slug>.md (WHAT/WHY), index it in 02-DOCS/wiki/index.md
                             (the Knowledge map; root CLAUDE.md keeps only a short pointer), commit if a repo
 8. SELF-REVIEW            → run the EXIT GATE (below) until green; scan for contradictions, ambiguity,
-                            scope creep; fix inline. On L2/L3 or high risk, add a FRESH-EYES review
+                            scope creep; fix inline. On a non-trivial or high-risk spec, add a FRESH-EYES review
 9. USER APPROVES          → ask them to read the written spec and confirm; loop on changes until they approve
 10. HAND OFF              → only now, result envelope → clarify/plan. NEVER to implement.
 ```
@@ -197,10 +196,10 @@ the section that failed and fix it before step 9.
 A gate that has never been seen fail is not known to work, so this one ships with the test that
 watches it fail and pass (`tests/spec-gate.test.js`).
 
-### Fresh-eyes spec review (step 8, scaled to the dial)
+### Fresh-eyes spec review (step 8, scaled to the stakes)
 
 The author's own context is blind to its own gaps — the same mind that wrote the spec self-reviews it
-with the same blind spots. For an L2/L3 user or a **high-risk** spec (multi-subsystem, security/data,
+with the same blind spots. For any spec beyond a small, low-risk one — and always for a **high-risk** spec (multi-subsystem, security/data,
 irreversible, or large scope), dispatch a **fresh-context subagent** to read the written spec cold,
 *before* the user-approval gate (step 9), and fold its findings in:
 
@@ -213,7 +212,7 @@ irreversible, or large scope), dispatch a **fresh-context subagent** to read the
 - **It returns** `Approved` or `Issues found` with a short list; you fix the real ones inline, then
   proceed to step 9.
 
-**Skip it** for L0/L1 on a small, low-risk spec — the self-review scan is enough there; don't spin up
+**Skip it** on a small, low-risk spec — the self-review scan is enough there; don't spin up
 a subagent to vet a two-paragraph spec. Like the rest of the chain, ceremony scales to the stakes.
 
 ### Approval is its own exchange (step 9)
@@ -382,11 +381,11 @@ If `clarify` surfaces answers, they get baked back into this same spec file. Onl
 - `../constitution/SKILL.md` — the project principles this spec inherits as constraints.
 - `../clarify/SKILL.md` — the next phase: resolves the Points to clarify and de-risks the spec.
 - `../plan/SKILL.md` — turns the de-risked spec into a technical implementation plan (the HOW).
-- `../harness/SKILL.md` — the 02-DOCS wiki + accompaniment dial + decisions log this skill honors.
+- `../harness/SKILL.md` — the 02-DOCS wiki + user profile + decisions log this skill honors.
 - `references/spec-template.md` — the exact section template written to `02-DOCS/wiki/sdd/specs/<slug>.md`.
 - `references/eliciting-requirements.md` — inference checklist + the frontier-round elicitation pattern.
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente, terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
 

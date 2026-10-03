@@ -6,7 +6,7 @@
 
 [![npm](https://img.shields.io/npm/v/@ericrisco/rsc?color=63d68a&labelColor=12161c&label=npm)](https://www.npmjs.com/package/@ericrisco/rsc)
 [![downloads](https://img.shields.io/npm/dm/@ericrisco/rsc?color=63d68a&labelColor=12161c&label=downloads)](https://www.npmjs.com/package/@ericrisco/rsc)
-[![skills](https://img.shields.io/badge/skills-273-63d68a?labelColor=12161c)](#the-catalog)
+[![skills](https://img.shields.io/badge/skills-270-63d68a?labelColor=12161c)](#the-catalog)
 [![license](https://img.shields.io/badge/license-MIT-63d68a?labelColor=12161c)](LICENSE)
 [![stars](https://img.shields.io/github/stars/ericrisco/rsc-harness?color=63d68a&labelColor=12161c)](https://github.com/ericrisco/rsc-harness/stargazers)
 
@@ -42,8 +42,8 @@ Open standards already cover individual parts — [Agent Skills](https://agentsk
 which complete harness this project needs. rsc-harness does that job through one guided flow:
 
 1. **You state the outcome.** No skill, hook or MCP vocabulary required.
-2. **The wizard reads only the project root** and asks technical level, accompaniment, project kind,
-   goal and assistants.
+2. **The wizard reads only the project root** and asks how technical to talk, project kind, goal and
+   assistants.
 3. **A proportional plan explains every choice.** Selected, deferred and excluded pieces all have a
    reason. Nothing writes before you accept the exact plan.
 4. **The result is verified.** Shared sources prevent duplication; knowledge loads progressively;
@@ -66,8 +66,8 @@ project they're equipping** — not inside a clone of this repo (see the note un
 npx @ericrisco/rsc@latest onboard
 ```
 
-That launches the binding plain-language onboarding. It asks the user for technical level,
-accompaniment, project kind and goal **before it writes anything**, reads only the selected project
+That launches the binding plain-language onboarding. It asks the user how technical to talk
+(technical or with analogies), project kind and goal **before it writes anything**, reads only the selected project
 root, and shows every selected or deferred skill, agent and hook with its reason. Relay those
 questions to the user; never invent or default their answers. The first pass writes nothing and
 prints a SHA-256 plan id. Only rerun with `--accept-plan <id>` after the user accepts that exact plan.
@@ -78,11 +78,11 @@ regenerating the plan keeps theirs.
 For a non-interactive agent, collect the answers and preview the same plan explicitly:
 
 ```bash
-npx @ericrisco/rsc@latest onboard --technical-level mixed --accompaniment L1 \
+npx @ericrisco/rsc@latest onboard --technical-level technical \
   --project-kind software --goal "small compound-interest website" \
   --software-scope small --target codex
 # After the user accepts the printed plan:
-npx @ericrisco/rsc@latest onboard --technical-level mixed --accompaniment L1 \
+npx @ericrisco/rsc@latest onboard --technical-level technical \
   --project-kind software --goal "small compound-interest website" \
   --software-scope small --target codex --accept-plan PRINTED_SHA256_ID
 ```
@@ -128,6 +128,24 @@ Earlier versions routed everything that sounded like building into the chain. Th
 project's own first rule — friction is proportional to risk — and a harness that interrupts the 80%
 that is harmless gets switched off, which protects nothing. Both lanes are still here; what changed
 is which one you land in by default, and who decides.
+
+---
+
+## 🗣️ It talks so you understand
+
+Agents assume you saw their reasoning, and they write too much. rsc fixes the voice, not the reader.
+
+- **Short sentences, one idea each.** The style comes from ASD-STE100, the controlled writing of
+  aircraft maintenance manuals, applied at about 80% and in your language.
+- **Every answer stands alone.** No "that fix" or "the second commit": the answer names the thing,
+  with the minimum context to understand it.
+- **One question at install:** technical, or with analogies. That is the only setting.
+- **A ladder when you do not follow.** Text first. Then one diagram. Then one HTML page. A video
+  only if you ask for it.
+
+Every turn still closes with the compass: where you are, and the next step as a question. The voice
+lives in `orient`, which every harness installs. Text you send to other people (emails, posts,
+READMEs) goes through `unslop` instead: it sounds like a person and carries no AI tells.
 
 ---
 
@@ -211,7 +229,7 @@ cd ~/rsc-skills && npm install && npm link
 > `node scripts/rsc.js …`, the `npm link` above, or pin the published build with
 > `npx @ericrisco/rsc@latest …`.
 
-The first run asks **how technical the conversation should be**, the accompaniment level, what the
+The first run asks **one** question about conversation: technical, or with analogies. Then what the
 project is for, its goal and the assistants to target. It then presents the complete plan. A small
 website can defer SDD, agents and code guards; an operations harness does not receive them merely
 because it lives in a repository. Deferred components record the evidence that would make rsc
@@ -235,10 +253,9 @@ $ rsc onboard
  ██████╗ ███████╗ ██████╗     ← animated gradient wordmark
  ██╔══██╗██╔════╝██╔════╝
  ██████╔╝███████╗██║
-  273 skills · one CLI · zero bloat
+  270 skills · one CLI · zero bloat
 
-How technical should the conversation be?
-How much accompaniment do you want?
+How should I talk to you?
 What are you building or running?
 What do you want this project to achieve?
 
@@ -404,6 +421,11 @@ Running through `npx` (no global install)? There's nothing to upgrade —
 `npx @ericrisco/rsc@latest` always fetches the latest published catalog; just run
 `rsc sync` afterwards if the project already has skills installed.
 
+**From 2.0.x to 2.1.0:** `eli5` and `show-me` became part of `orient`, and `bro` became part of
+`unslop`. The update removes the three old skills (only the copies rsc installed) and installs the
+ones that replace them. An `accompaniment_level` line in your profile is ignored: the only setting
+now is `technical_level`.
+
 Every sync snapshots the project first, so a bad update is always reversible:
 
 ```bash
@@ -434,20 +456,21 @@ just asks in plain language.
 
 ## The catalog
 
-273 skills, grouped by what you're trying to do. Click any skill to read its
+270 skills, grouped by what you're trying to do. Click any skill to read its
 `SKILL.md`. It fires on its own when a task matches.
 
 ### 🧭 Core & control plane
 The front door and the workspace brain.
 
-[init](skills/init/) · [harness](skills/harness/) · [orient](skills/orient/) · [suggest](skills/suggest/) · [bro](skills/bro/) · [unslop](skills/unslop/) · [author-skill](skills/author-skill/) · [sdd-init](skills/sdd-init/)
+[init](skills/init/) · [harness](skills/harness/) · [orient](skills/orient/) · [suggest](skills/suggest/) · [unslop](skills/unslop/) · [author-skill](skills/author-skill/) · [sdd-init](skills/sdd-init/)
 
 > **harness** is the Karpathy *chaos→knowledge* engine — a `01-TOOLS/` layer (one
 > folder per provider, each with a working `test_connection`) and a `02-DOCS/`
 > self-improving wiki. It governs software *or* a whole company. **orient** is the
-> always-on compass that keeps a non-technical human oriented after every step.
-> **bro** is installed with every profile and rewrites any answer in plain, natural
-> language when the user asks — without making its full body always-on.
+> always-on voice: short STE-style sentences, every answer understandable on its own,
+> technical or with analogies, and a diagram or an HTML page when you do not follow.
+> **unslop** is installed with every profile and makes text you send to others sound
+> like a person, with no AI tells.
 
 <img src="https://raw.githubusercontent.com/ericrisco/rsc-harness/main/site/company-brain.svg" alt="The rsc company brain as a 3D knowledge graph: loose material drifts in from the inbox on the left and is absorbed into the bright green wiki cluster, whose brightest hubs are its .base views; dim clusters behind are raw sources and the agent's own captured worklog; an amber cluster is gaps.md, what the wiki knows it is missing." width="960">
 
@@ -571,7 +594,7 @@ Three engines + engine-agnostic disciplines. Every engine skill pins the current
 
 ### 🧠 Knowledge & meta
 
-[knowledge-ops](skills/knowledge-ops/) · [codebase-onboarding](skills/codebase-onboarding/) · [research-ops](skills/research-ops/) · [decision-records](skills/decision-records/) · [continuous-learning](skills/continuous-learning/) · [skill-scout](skills/skill-scout/) · [context-budget](skills/context-budget/) · [roast-me](skills/roast-me/) · [show-me](skills/show-me/) · [eli5](skills/eli5/) · [fable-operator](skills/fable-operator/)
+[knowledge-ops](skills/knowledge-ops/) · [codebase-onboarding](skills/codebase-onboarding/) · [research-ops](skills/research-ops/) · [decision-records](skills/decision-records/) · [continuous-learning](skills/continuous-learning/) · [skill-scout](skills/skill-scout/) · [context-budget](skills/context-budget/) · [roast-me](skills/roast-me/) · [fable-operator](skills/fable-operator/)
 
 ---
 

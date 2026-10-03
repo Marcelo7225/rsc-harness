@@ -107,12 +107,11 @@ plane keeps about the user and its own decisions. It is a normal wiki topic
 (linted, scored, indexed) with two canonical articles:
 
 - `wiki/harness/user-profile.md` — the living portrait of the user: technical
-  level, accompaniment level (L0–L3), goals, context, constraints. **Every
-  skill reads this first** and adapts verbosity + how many questions it asks to
-  the level recorded here. Created/updated by `init` and `harness`.
-  When absent, the agent defaults to non-technical framing and asks the two
-  gauging questions (technical level, then accompaniment level) before
-  proceeding. See the "Core behavior" section of the parent `SKILL.md`.
+  level (the register: technical terms, or plain words with analogies), goals,
+  context, constraints. **Every skill reads this first** and speaks in that
+  register, in the one `orient` voice. Created/updated by `init` and `harness`.
+  When absent, the agent uses analogies and asks once "technical or with
+  analogies?" before proceeding. See the "Core behavior" section of the parent `SKILL.md`.
 - `wiki/harness/decisions.md` — **append-only** log of every significant
   decision (deploy target, database, framework, hosting, tooling…). One entry
   per decision with date, requirements gathered, the 3 options presented (the

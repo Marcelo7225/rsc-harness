@@ -93,7 +93,10 @@ export function readManifest(root) {
   // accepted, and anything else is simply not there.
   const ID = /^[a-z0-9][a-z0-9._-]{0,63}$/;
   const ids = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && ID.test(x)) : []);
-  const skills = ids(parsed.skills);
+  // Retired skills read as their successors. Canonical map: scripts/lib/retired-skills.js — inlined
+  // because this file cannot import anything, and tests/retired-skills.test.js holds the two equal.
+  const RETIRED = { eli5: 'orient', 'show-me': 'orient', bro: 'unslop' };
+  const skills = [...new Set(ids(parsed.skills).map((id) => (Object.hasOwn(RETIRED, id) ? RETIRED[id] : id)))];
   const own = ids(parsed.ownSkills);
   // A manifest with nothing declared is not a clone waiting to be equipped; there is nothing to offer.
   if (!skills.length && !own.length) return { state: 'absent' };

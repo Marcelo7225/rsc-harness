@@ -1,62 +1,45 @@
-# Accompaniment & Profile — the non-technical-first script, the dial, and how it persists
+# Register & Profile — the first-contact question and how it persists
 
-This file holds the runtime detail behind the SKILL.md section "Non-technical-first + the accompaniment dial". It defines: the first-contact script, the dial, the exact `02-DOCS` file formats, and the rules every downstream skill follows to adapt.
+This file holds the runtime detail behind the SKILL.md section "First contact". It defines: the first-contact question, the register it sets, the exact `02-DOCS` file formats, and the rule every downstream skill follows. (The filename is historical: the accompaniment dial it once described is retired.)
 
 ## Why this matters
 
-The single biggest failure mode of a developer-built harness is talking like a developer to someone who is not one. This system inverts the default: it assumes non-technical, asks before assuming otherwise, and lets the user turn explanation up or down at will. The profile is the contract; every skill honors it.
+The single biggest failure mode of a developer-built harness is talking like a developer to someone who is not one. This system inverts the default: it assumes analogies, asks once before assuming otherwise, and keeps one voice for everyone. The profile is the contract; every skill honors it.
 
-## The first-contact script
+## The first-contact question
 
-Ask exactly two things, in order, before anything else. Do not bundle them with discovery questions.
-
-### Question 1 — technical level (the literal first message)
+Ask exactly one thing before anything else. Do not bundle it with discovery questions.
 
 Spanish:
 
-> "Antes de nada, para hablarte como te resulte más cómodo: ¿te manejas con código y términos técnicos, o prefieres que te lo explique todo en cristiano? No hay respuesta mala — solo me ayuda a no aburrirte ni perderte."
+> "¿Te hablo en lenguaje técnico o con analogías?"
 
 English:
 
-> "First, so I talk to you the right way: are you comfortable with code and technical terms, or would you rather I explain everything in plain language? There's no wrong answer — it just helps me not bore you or lose you."
+> "Should I talk to you in technical terms or with analogies?"
 
 Map the answer to one of:
 
-- `non-technical` — plain language, analogies, no jargon, no code shown unless asked.
-- `mixed` — comfortable with concepts, not necessarily syntax; define terms once.
-- `technical` — full jargon OK, can read code and configs.
+- `technical` — technical terms used directly; can read code and configs.
+- `non-technical` — plain words and everyday analogies; no undefined jargon; no code shown unless asked.
+- `mixed` — still valid in older profiles; treat it like `non-technical`.
 
-If the user does not answer clearly, assume `non-technical`. Never guess "technical" from the fact that they opened a terminal — many non-technical people are handed one.
+`non-technical` and `mixed` (and no profile at all) also arm the danger guard, which blocks irreversible commands; `technical` never does. Say so when you record the answer.
 
-### Question 2 — the accompaniment dial
-
-Present all four levels with their plain descriptions (do not show only labels):
-
-- **L0 — "Modo cavernícola"**: mínimas palabras. Hago las cosas y ya, casi sin explicar.
-- **L1 — "Breve"**: una línea de *por qué* en cada paso.
-- **L2 — "Explica decisiones"**: justifico cada decisión relevante a medida que avanzo.
-- **L3 — "Acompañamiento total"**: te lo explico TODO, te hago muchas preguntas para entender tu contexto, y razono cada decisión. Ideal para no-técnicos.
-
-Defaults when the user gives no preference: `non-technical → L3`, `mixed → L2`, `technical → L1`. The user can change the dial any time by saying so ("ponlo en breve", "explícamelo todo"); update `user-profile.md` when they do.
+If the user does not answer clearly, record `non-technical`. Never guess "technical" from the fact that they opened a terminal — many non-technical people are handed one. The user can change it any time ("háblame técnico", "con analogías"); update `user-profile.md` when they do.
 
 ## How every skill adapts
 
-Both values combine. `accompaniment_level` controls **how much** is said and **how many questions** are asked; `technical_level` controls **the vocabulary**. A profile written by an older `onboard` may carry `accompaniment:` instead — it is the same dial; read it, and write `accompaniment_level` the next time you touch the profile.
+There is no per-user depth setting. Every skill speaks in the one voice the `orient` skill owns (`skills/orient/references/orientation-contract.md`): short sentences, one idea per sentence, simple words, active voice, the instruction before the reason, and every answer understandable on its own. `technical_level` only picks the register:
 
-| Level | Output verbosity | Questions before acting | On a decision |
-| --- | --- | --- | --- |
-| L0 | Result line only | None beyond hard blockers | Pick the recommended option, log it, mention it in one line |
-| L1 | One *why* line per step | Only on genuine ambiguity | Present the 3 options tersely, recommend, proceed on confirm |
-| L2 | Justify each relevant decision | Ask before each significant decision | Full 3-option pattern with trade-offs |
-| L3 | Narrate reasoning throughout | Many — contextualize every choice | Full 3-option pattern + explain each option in plain language and check understanding |
+- `technical` — use the term directly; skip the 101 explanations.
+- `non-technical` / `mixed` — translate every term ("a database is where the app remembers things"), prefer analogies, never paste raw config without explaining it.
 
-Vocabulary modifier:
+If the person still does not understand, `orient` climbs its explanation ladder (text → diagram → one HTML page → a video, only offered).
 
-- `non-technical` — translate every term ("a database is where the app remembers things"), prefer analogies, never paste raw config without explaining it.
-- `mixed` — use the term, define it inline the first time.
-- `technical` — use the term directly; skip the 101 explanations even at L3.
+**Legacy keys.** A profile written by an older `init` or `onboard` may carry `accompaniment_level:` or the even older `accompaniment:`. Both are retired: ignore their value, and drop the line the next time you touch the profile.
 
-**Rule:** read `user-profile.md` at the start of every session. If it is missing, you are likely being run before `init` — run the first-contact script before doing the requested work, or at minimum default to `non-technical` + `L3` and note that the profile is unset.
+**Rule:** read `user-profile.md` at the start of every session. If it is missing, you are likely being run before `init` — ask the first-contact question before doing the requested work, or at minimum speak with analogies and note that the profile is unset.
 
 ## Persistence format
 
@@ -64,16 +47,15 @@ Both files live under `02-DOCS/wiki/harness/`. `init` creates this directory eve
 
 ### `02-DOCS/wiki/harness/user-profile.md`
 
-A living document — updated whenever the user reveals new goals, context, constraints, or changes the dial. It is the single source of truth other skills read.
+A living document — updated whenever the user reveals new goals, context, constraints, or changes the register. It is the single source of truth other skills read.
 
 ```markdown
 # User Profile
 
 > Source of truth for how every rsc skill talks to this user. Updated continuously.
 
-## Levels
-- technical_level: non-technical            <!-- non-technical | mixed | technical -->
-- accompaniment_level: L3                    <!-- L0 | L1 | L2 | L3 -->
+## Register
+- technical_level: non-technical            <!-- technical | non-technical (mixed: legacy, reads as non-technical) -->
 - language: es                               <!-- the user's working language -->
 - last_updated: 2026-06-01
 
@@ -133,7 +115,7 @@ Add (or update) a `## Knowledge map` section that links BOTH files. Create `CLAU
 ```markdown
 ## Knowledge map
 
-- [User profile](02-DOCS/wiki/harness/user-profile.md) — technical level, accompaniment dial, goals, context, constraints. **Every skill reads this first and adapts its verbosity and questions.**
+- [User profile](02-DOCS/wiki/harness/user-profile.md) — register (technical or analogies), goals, context, constraints. **Every skill reads this first and speaks in that register.**
 - [Decisions log](02-DOCS/wiki/harness/decisions.md) — append-only record of every significant decision and why.
 ```
 

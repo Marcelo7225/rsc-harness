@@ -22,7 +22,7 @@ and the intent itself. Only what survives as unknown becomes a question or a
 - **Boundaries** — what's adjacent but deliberately excluded? Derive non-goals
   from the constitution's scope and quality bars.
 - **Happy path** — the common-case behaviour is usually inferable from the
-  intent; write it, then test it with the user if L2/L3.
+  intent; write it, then test it with the user.
 - **Edges** — empty / none / one / many / max, concurrent, repeated, expired,
   unauthorized. Walk these mechanically; each is a candidate criterion.
 - **Errors** — what does the user see when it fails, and what must NOT be
@@ -77,15 +77,15 @@ moved is worse than no answer, because it looks settled.
 
 Phrase by register:
 
-- **Non-technical / L3** — plain language, one concept, offer a concrete
+- **Non-technical** — plain language, one concept, offer a concrete
   example to react to rather than an open void:
   > "When someone's link has expired, should they be able to ask for a fresh
   > one right there, or is that a separate step?"
-- **Technical / L0-L1** — terse, decision-shaped:
+- **Technical** — terse, decision-shaped:
   > "Expired-link recovery in scope, or defer?"
 
-Always: emit the round → wait → record each answer in its section → confirm at
-L2/L3 → recompute the frontier. The thing to avoid was never two questions in
+Always: emit the round → wait → record each answer in its section → confirm it
+→ recompute the frontier. The thing to avoid was never two questions in
 one message; it was ten questions whose answers depend on each other, which is
 what crossing a dependency produces.
 

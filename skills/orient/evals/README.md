@@ -1,16 +1,18 @@
 # Evals — orient
 
-The always-on brújula. These cases check that it keeps the user oriented at the end of a
-turn (map + what happened + why-at-level + next step as a question) and that it defers
-install prompts to `suggest` and never interrupts trivial mid-flow edits.
+How the harness talks to the person. These cases check the voice (STE-style, short, every answer
+stands alone), the register from `technical_level`, the explain ladder (text → diagram → HTML →
+video on request), and the brújula at the end of a turn. Install prompts stay with `suggest`; text
+for others stays with `unslop`.
 
 | Prompt | Expected |
 |---|---|
-| "ya está instalado, ¿y ahora qué?" | situate + next step as a question |
-| "no sé por dónde seguir" | render the map + 1-3 next options |
-| "explícame menos" | lower the dial, confirm, apply reduced depth |
+| "ya está instalado, ¿y ahora qué?" | short stand-alone state + next step as a question |
+| "no entiendo nada" | one step up the ladder: a small diagram |
+| "explícame Docker desde cero" | from-zero explanation with analogies |
+| "háblame más técnico" | set technical_level, confirm, apply |
 | "renombra esta variable" | no full brújula block (trivial mid-flow) |
-| "necesito una base de datos" | defer to `suggest` (no duplicate install prompt) |
+| "haz que este correo suene humano" | defer to `unslop` |
 
-A pass = orient closes the turn without leaving the user in seco, scales the why to the
-dial, and never duplicates `suggest`'s install prompt.
+A pass = short sentences, nothing that needs earlier context, the right register, one ladder step
+per sign, and no turn ending in seco.

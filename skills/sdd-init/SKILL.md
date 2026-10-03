@@ -23,14 +23,14 @@ Read-only first:
 
 - `package.json`, lockfiles, `pnpm-workspace.yaml`, `pyproject.toml`, `requirements.txt`, `go.mod`, `pubspec.yaml`, `Dockerfile`, `.github/`.
 - Existing `02-DOCS/wiki/sdd/config.yaml`, if present.
-- `02-DOCS/wiki/harness/user-profile.md`, if present, for accompaniment level only.
+- `02-DOCS/wiki/harness/user-profile.md`, if present, for `technical_level` (the register) only.
 - `.rsc/skill-registry.json`, if present, to decide whether it is stale or missing.
 
 If `02-DOCS/` does not exist, create only the `02-DOCS/wiki/sdd/` path needed for the config. Do not run full harness scaffolding unless the user asked for `harness`.
 
 ## Preflight Choices
 
-Ask only when the answer changes behavior; let the accompaniment level in the profile set how much you explain each trade-off.
+Ask only when the answer changes behavior; explain each trade-off in one line, in the register `technical_level` sets.
 
 | Setting | Default | Options |
 | --- | --- | --- |
@@ -77,7 +77,7 @@ Later phases use it as a cheap index — id, trigger, tags, path, installed/avai
 Calibration is the moment to make sure the relevant skills are actually present, not just indexed. Detect → propose → install:
 
 1. **Detect what this repo needs.** Use the stack you just detected, or ask the CLI: `npx @ericrisco/rsc consult "<one line: stack + what we're building>"`. Map signals to skills — e.g. `next`→`nextjs`+`design`, `go.mod`→`go`, FastAPI→`fastapi`, `*.sql`/Prisma→`postgresdb`/`prisma-orm`, Stripe→`stripe`, Dockerfile/CI→`docker`/`github-actions`, tests→`testing-*`/`e2e-testing`. The SDD phase skills (`specify`…`ship`) should already be present from `--profile core`; install any that are missing.
-2. **Show the shortlist + confirm.** List the skills with a one-line *why* each, matched to the accompaniment dial, and get a one-word confirm before touching their environment.
+2. **Show the shortlist + confirm.** List the skills with a one-line *why* each, in the user's register, and get a one-word confirm before touching their environment.
 3. **Install them yourself.** You have a terminal — run it via Bash:
    ```bash
    npx @ericrisco/rsc add <skill> [<skill> ...]

@@ -46,7 +46,7 @@ Then, in this order and never skipping ahead:
 4. **Nothing covers it** → one sentence at the end of the work: the procedure you saw, and whether it fits as a skill or an agent. Then stop; the user decides. Their "no" ends it for this procedure for the rest of the session.
 5. **Record it either way** — `npx @ericrisco/rsc capabilities gap-log --procedure "<what YOU observed doing>" --verdict <covered-installed|covered-catalog|covered-agent|proposed-accepted|proposed-declined>`.
 
-**Scale the sentence to the dial**, never whether it appears. Read the accompaniment level in `02-DOCS/wiki/harness/user-profile.md`: at L0/L1 it is one dry line ("this looked like a procedure — worth a skill?"); at L2/L3 add why it qualified and what the skill-vs-agent difference means for them. A profile that asked for brevity still gets the observation, just not the essay.
+**One sentence, always.** In the `orient` voice: one line ("this looked like a procedure — worth a skill?") plus why it qualified. Explain the skill-vs-agent difference only if the user asks; for a `non-technical` reader (`technical_level` in `02-DOCS/wiki/harness/user-profile.md`), use an analogy. Brevity never removes the observation.
 
 **The privacy boundary is yours to hold**, not the command's — it validates shape and nothing else, and it cannot tell your description from a paraphrase of the request. `--procedure` carries *your* account of the work you did. Never the user's words. The test: if the line could be reconstructed from what they typed, it does not belong in the log.
 

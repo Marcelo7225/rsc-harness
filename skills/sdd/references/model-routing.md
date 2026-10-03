@@ -92,7 +92,7 @@ The user owns this. They change a phase by adding it to `models.overrides` (e.g.
 
 ## How a phase applies the profile (the procedure)
 
-Run this at the start of any SDD phase, after reading the accompaniment dial:
+Run this at the start of any SDD phase, after reading the user profile:
 
 1. **Read** `models` from `02-DOCS/wiki/sdd/config.yaml`. If the block is absent or
    `enabled: false` → **do nothing**: honor the session model, say nothing about models.
@@ -106,7 +106,7 @@ Run this at the start of any SDD phase, after reading the accompaniment dial:
      model and is the most reliable application — prefer it.
    - **Advisory (all assistants, inline work).** If the resolved model differs from the current
      session model and the work isn't being delegated, **announce** it at the phase boundary,
-     gated by the accompaniment dial (below), and give the switch command for the active
+     in one line (below), and give the switch command for the active
      assistant (mechanism table below). Never block — the human may decline and continue.
 5. **Skip routing entirely** for a one-line / trivial change, exactly as the SDD skip rule says
    for the rest of the chain. Ceremony serves shipping, not the other way around.
@@ -114,16 +114,9 @@ Run this at the start of any SDD phase, after reading the accompaniment dial:
    Log it to `02-DOCS/wiki/sdd/decisions.md` only when the choice actually mattered (e.g. you
    overrode a tier for a hard plan) — not on every phase.
 
-### Announcement volume by accompaniment dial
+### How to announce a switch
 
-The dial controls how loudly you announce a switch; it never changes whether routing happens.
-
-| Level | On a model switch you… |
-| --- | --- |
-| **L0** "cavernícola" | Switch/dispatch silently. One short line only if the user must act (e.g. "para esta fase conviene opus: `/model opus`"). |
-| **L1** "breve" | One line: which tier/model and the one-word why. |
-| **L2** "explica decisiones" | Name the tier, the model, and why this phase warrants it; give the switch command. |
-| **L3** "acompañamiento total" | Explain the tier system as it applies here, the cost/quality trade-off, and how to override in config. |
+Announcing never changes whether routing happens. A programmatic dispatch is silent. When the user must act, say it in one line, in the `orient` voice: the tier, the model, the one-word why, and the switch command (e.g. "para esta fase conviene opus: `/model opus`"). Explain the tier system or how to override it in config only when the user asks.
 
 ## Per-assistant switch mechanism
 
@@ -194,7 +187,7 @@ tier you didn't use.
 | --- | --- |
 | "Routing sounds good, I'll switch models even though the user never enabled it." | It's opt-in. `enabled: false` (and a missing block) means honor the session model and say nothing. |
 | "I'll tell the user I switched to Opus." (on an assistant with no programmatic switch) | You can't switch there. Announce the tier and the command; never claim a switch you didn't make. |
-| "L0 means terse, so I'll skip routing." | L0 changes words, not behavior. Route the same; just announce silently (or only when the user must act). |
+| "The user wants it short, so I'll skip routing." | Short changes words, not behavior. Route the same; announce only when the user must act. |
 | "It's a one-line typo fix but the phase is `review`, so → heavy." | Skip routing on trivial changes, like the rest of the chain. Don't spin up the expensive model for a copy tweak. |
 | "I'll log the model on every phase." | Log to `decisions.md` only when the model choice mattered. The envelope `model` field already records the routine case. |
 | "config has no `models` block, I'll assume the defaults are active." | A missing block means routing is **off**. Defaults describe what `sdd-init` *writes*, not an implicit on-state. |

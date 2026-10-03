@@ -128,9 +128,12 @@ test('the package’s own rscFixes are well formed and never point at the future
     // CI bumps the patch AFTER the merge, so the author of a fix writes the NEXT patch. That one is
     // allowed; anything further is a typo that would name a symptom as fixed in a release that
     // never comes.
-    const [ma, mi, pa] = PKG.version.split('.').map(Number);
-    const nextPatch = `${ma}.${mi}.${pa + 1}`;
-    assert.equal(newer(f.fixedIn, nextPatch), false, `${f.fixedIn} is beyond the next release (${nextPatch})`);
+    // A prerelease (`2.1.0-0`) is how a minor or major is staged: CI's patch bump drops the suffix and
+    // publishes `2.1.0` itself, so that is the next release, not `2.1.1`.
+    const [base, pre] = PKG.version.split('-');
+    const [ma, mi, pa] = base.split('.').map(Number);
+    const nextRelease = pre ? base : `${ma}.${mi}.${pa + 1}`;
+    assert.equal(newer(f.fixedIn, nextRelease), false, `${f.fixedIn} is beyond the next release (${nextRelease})`);
     assert.equal(typeof f.symptom, 'string');
     assert.ok(f.symptom.length > 0 && f.symptom.length <= 200, `symptom must be 1–200 chars: ${f.symptom}`);
     assert.doesNotMatch(f.symptom, /[\u0000-\u001f]/, 'one line, no control characters');

@@ -1,6 +1,6 @@
 {
   "name": "@ericrisco/rsc",
-  "version": "2.0.20",
+  "version": "2.1.0-0",
   "description": "A guided harness builder that turns your goal into a minimal, verified AI-agent setup using strict best practices.",
   "type": "module",
   "bin": {
@@ -109,6 +109,10 @@
     {
       "fixedIn": "2.0.20",
       "symptom": "In a project whose path contains a space, rsc doctor reported every hook script as missing and exited 1, though the scripts were there and the hooks ran"
+    },
+    {
+      "fixedIn": "2.1.0",
+      "symptom": "Answers were long and leaned on hidden reasoning, and onboarding asked an accompaniment level few could answer; now: short stand-alone sentences, one question"
     }
   ]
 }

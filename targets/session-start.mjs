@@ -120,7 +120,7 @@ if (!existsSync(profile) && !existsSync(optout)) {
   process.stdout.write(`
 ===== rsc onboarding =====
 Fresh setup: 02-DOCS/wiki/harness/user-profile.md is missing.
-ACTION: invoke \`init\` now (first contact: technical level + accompaniment dial) before the task.
+ACTION: invoke \`init\` now (first contact, one question: technical or with analogies) before the task.
 If the user does not want a harness here: create .rsc/.no-harness
 ==========================
 `);

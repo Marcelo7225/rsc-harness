@@ -48,7 +48,7 @@ Pydantic model or a Go method on a struct — it can, because the contract is un
 3. **The Knowledge map** — `02-DOCS/wiki/index.md` points at `02-DOCS/wiki/stack/*` and prior
    plans/decisions. Reusing what the project already settled is the difference between a plan and
    scope drift.
-4. **The dial** — `02-DOCS/wiki/harness/user-profile.md` (see below).
+4. **The profile** — `technical_level` in `02-DOCS/wiki/harness/user-profile.md` (see below).
 
 ## What a plan contains
 
@@ -95,18 +95,14 @@ phase's default tier is **`heavy`**. Routing is off unless `models.enabled: true
 `02-DOCS/wiki/sdd/config.yaml`; the resolution order, the announce rule and the model table live in
 `../sdd/references/model-routing.md`. Routing off or no profile → session model, silently.
 
-## Adapting to the dial
+## Talking about the plan
 
-The accompaniment level in `02-DOCS/wiki/harness/user-profile.md` (owned by `../init/SKILL.md`)
-changes how much you *say*, never whether a section exists. Even at L0 the plan is complete; it is
-just quiet.
-
-| Level | How `plan` behaves |
-| --- | --- |
-| **L0** | Terse plan, no narration in chat — write the file, point to it. |
-| **L1** | Same artifact, one line of *why* on the top architectural decision. |
-| **L2** | Justify each significant design choice in the artifact; surface the trade-offs weighed. |
-| **L3** | Walk a non-technical user through the architecture in plain language, define terms inline, and ask about constraints you cannot infer — one focused question at a time. |
+The artifact is complete regardless of who reads it: every section, each significant design choice
+justified with the trade-offs weighed. In chat, say only what the reader needs, in the `orient`
+voice: point to the file and give one line of *why* on the top architectural decision. The register
+comes from `technical_level` in `02-DOCS/wiki/harness/user-profile.md` (set by `../init/SKILL.md`):
+for a `non-technical` reader, explain the architecture with an everyday analogy and define each term
+inline. Ask only about constraints you cannot infer.
 
 ## Anti-patterns
 
@@ -124,7 +120,7 @@ just quiet.
 ## Always propose isolation before the build
 
 Once the plan is written, **always propose isolating the work in a git worktree/branch** before any
-code is implemented — every feature, not just the risky ones. One line, calibrated to the dial:
+code is implemented — every feature, not just the risky ones. One line:
 
 > *"Antes de implementar, ¿aíslo este trabajo en un worktree/rama propia (`../worktrees/SKILL.md`)
 > para no tocar tu rama actual? (recomendado)"*

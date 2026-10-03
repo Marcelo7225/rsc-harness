@@ -7,7 +7,7 @@ and prints commands the user runs.
 
 ## The skill map
 
-| Discovery signal | Skills | One-line *why* (adapt to level) |
+| Discovery signal | Skills | One-line *why* (in the user's register) |
 | --- | --- | --- |
 | Always (every project) | `harness` | The control plane — scaffolds and governs the whole workspace (`suggest` installs with it as the floor). |
 | Backend / API / database | `fastapi` or `go`, `postgresdb` | The server, the API, the database that remembers things. |
@@ -28,7 +28,7 @@ usually does NOT want `fastapi`/`nextjs` unless they're also building software.
 ## What to print
 
 One `npx @ericrisco/rsc add` line per recommendation (or batch them on one line), each with
-its *why* in the user's language and level.
+its *why* in the user's language and register.
 
 ```text
 npx @ericrisco/rsc add <skill> [<skill> ...]
@@ -81,7 +81,7 @@ For any significant decision — deploy target, database, framework, hosting, wh
 
 ### 1. Gather the driving requirements first
 
-Ask the questions that actually change the answer. Match question count/depth to `accompaniment_level` (L0: only hard blockers; L3: ask all, explaining why each matters). Checklists per decision type:
+Ask only the questions that actually change the answer, in one short batch. Checklists per decision type:
 
 - **Deploy target:** expected number of users; concurrent users; budget; data region / residency rules; the team's comfort operating servers; scaling needs (steady vs spiky); existing org/cloud constraints.
 - **Database:** data shape (relational vs documents vs key-value); expected size and growth; query patterns; consistency vs scale needs; managed vs self-hosted preference; budget.
@@ -92,9 +92,9 @@ Ask the questions that actually change the answer. Match question count/depth to
 
 Three, with honest trade-offs — what each is good at, what it costs, what it demands. Not two (false binary), not ten (paralysis). If a fourth is genuinely worth knowing, mention it in one line under the third — but the choice is between three.
 
-### 3. Recommend one, matched to their answers AND their level
+### 3. Recommend one, matched to their answers
 
-State your recommendation and why, in language they understand. At L3 / non-technical, explain each option in plain terms and check they followed before they pick.
+State your recommendation and why, in their register. For a `non-technical` user, explain each option with an everyday analogy and check they followed before they pick.
 
 ### 4. Log the decision
 

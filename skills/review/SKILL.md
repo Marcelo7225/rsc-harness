@@ -24,7 +24,7 @@ The discipline is the same in both directions: **every finding and every rebutta
 
 1. `02-DOCS/wiki/sdd/specs/<slug>.md` and `02-DOCS/wiki/sdd/plans/<slug>.md` — what the diff was *supposed* to do. A review with no spec is a review of vibes.
 2. `02-DOCS/wiki/sdd/constitution.md` — the project's non-negotiables (stack canon, quality bars, conventions). Constitution violations are findings even when the code "works".
-3. `02-DOCS/wiki/harness/user-profile.md` — the accompaniment dial (see "Narration dial" below).
+3. `02-DOCS/wiki/harness/user-profile.md` — `technical_level`, the register (see "How a review reads" below).
 
 If there is no spec/plan (someone jumped straight to code), say so and review against the constitution + the diff's own stated intent. Don't pretend a spec exists.
 
@@ -247,18 +247,15 @@ When you've processed the review, summarize for the reviewer (and the decisions 
 | "I'll approve it, the issues are minor" | If they're truly minor, label them nits and approve. If they block, don't approve. No mushy middle. |
 | "No spec, so I'll just eyeball it" | Say there's no spec and review against the constitution + stated intent. Don't fake a baseline. |
 
-## Narration dial
+## How a review reads
 
-Read the level from `02-DOCS/wiki/harness/user-profile.md`. It changes what a review *shows*, never its rigor — every level runs the same passes and the same evidence bar. No profile → default L2 and proceed; don't stall a review to ask for a dial setting.
+Read `technical_level` from `02-DOCS/wiki/harness/user-profile.md`. It changes the words, never the rigor — every reader gets the same passes and the same evidence bar. No profile → use analogies and proceed; don't stall a review to ask.
 
-- **L0** — verdict + the blocker list, terse. `CHANGES REQUESTED: 1 blocker (auth, documents.py:42), 1 nit. Fix the auth scope and re-run verify.`
-- **L1** — each finding gets its one-line *why*.
-- **L2** — full finding format (where/why/repro/fix); explain why each blocker blocks.
-- **L3** — the above plus teaching: name the defect class (IDOR, N+1, TOCTOU), why the boundary matters, and how to not reintroduce it. For non-technical authors, translate the impact ("any logged-in person could read everyone else's documents").
+In the `orient` voice: the verdict first, then the blocker list — e.g. `CHANGES REQUESTED: 1 blocker (auth, documents.py:42), 1 nit. Fix the auth scope and re-run verify.` Each finding keeps its full format (where/why/repro/fix) and names its defect class (IDOR, N+1, TOCTOU). For a `non-technical` author, translate the impact ("any logged-in person could read everyone else's documents").
 
 ## Model tier — `heavy` (opt-in routing)
 
-This phase's default model tier is **`heavy`** — adversarial diff reading is where the strongest model pays off most. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch per the narration dial when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
+This phase's default model tier is **`heavy`** — adversarial diff reading is where the strongest model pays off most. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch in one line when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
 
 ## Where this writes
 

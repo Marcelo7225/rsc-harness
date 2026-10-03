@@ -103,7 +103,7 @@ End every review with exactly one, plainly — no mushy middle:
 
 ## Effort dial
 
-Mirror the slash command's effort level: **low/medium** → fewer, high-confidence findings (raise the confidence floor, focus on passes 1–4). **high/max** → broader coverage; uncertain findings are allowed but must be labelled `[question]`, never inflated into blockers. This is *coverage vs precision*, not the harness accompaniment dial — it changes what you look at, not how much you narrate.
+Mirror the slash command's effort level: **low/medium** → fewer, high-confidence findings (raise the confidence floor, focus on passes 1–4). **high/max** → broader coverage; uncertain findings are allowed but must be labelled `[question]`, never inflated into blockers. This is *coverage vs precision*, not the user's register — it changes what you look at, not how you word it.
 
 ## Emitting comments and applying fixes
 

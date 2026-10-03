@@ -64,7 +64,7 @@ capability:
   - scenario: "I have constitution.md, a spec, a plan and a task list under 02-DOCS/wiki/sdd/ for a 'team invites' feature. The constitution says 'Postgres only, every endpoint rate-limited'. The spec requires email invites with a 5/min rate limit and invite expiry after 7 days. The plan adds a Redis-backed cache nobody asked for and is silent on rate limiting. The tasks cover sending invites and expiry but have no task for rate limiting and no done-check on the expiry task. Run the gate."
     must_include:
       - "Reports only and resolves nothing: explicitly does NOT edit the spec/plan/tasks and writes no code; hands each finding back to the user to resolve."
-      - "Reads the harness accompaniment dial from 02-DOCS/wiki/harness/user-profile.md and adapts report verbosity (or notes no profile and defaults to L2)."
+      - "Reads technical_level from 02-DOCS/wiki/harness/user-profile.md and writes the report in that register (or notes no profile and uses analogies), with every finding in one line."
       - "Runs all six analyses (constitution compliance, coverage, scope drift, contradiction, duplication, ambiguity), not just coverage."
       - "Flags the missing rate-limit task as a coverage GAP and as a CONSTITUTION violation (constitution requires every endpoint rate-limited) — marks it CRITICAL/HIGH and routes it to the tasks/plan phase."
       - "Flags the Redis cache as scope DRIFT (no spec requirement behind it) and notes the resolution is the user's call: cut it or amend the spec."

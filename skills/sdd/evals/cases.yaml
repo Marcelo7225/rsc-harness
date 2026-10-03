@@ -1,7 +1,7 @@
 skill: sdd
 
 # Cases for the rsc-sdd "sdd" dispatcher / front door.
-# sdd states the SDD method, reads the accompaniment dial from
+# sdd states the SDD method, reads the user's register (technical_level) from
 # 02-DOCS/wiki/harness/user-profile.md, and ROUTES to the right phase skill in
 # the chain constitution -> specify -> clarify -> plan -> tasks -> analyze ->
 # implement -> verify -> review -> ship (debug/worktrees/parallel on demand).
@@ -61,10 +61,10 @@ should_not_trigger:
     why: "A concrete stack build with a named framework is the nextjs stack skill. sdd is process, not stack; it would defer build specifics to nextjs rather than fire itself."
 
 capability:
-  - scenario: "A developer at accompaniment level L1 says: 'I've got a rough idea for a feature and I want to build it the spec-driven way, end to end. Where do I begin?' Show how the dispatcher opens the engagement."
+  - scenario: "A developer whose profile says technical_level: technical says: 'I've got a rough idea for a feature and I want to build it the spec-driven way, end to end. Where do I begin?' Show how the dispatcher opens the engagement."
     must_include:
       - "States the SDD method in brief: decide what & why before how, write it down, each artifact gates the next ('the artifact is the contract')"
-      - "Reads (or notes it should read) 02-DOCS/wiki/harness/user-profile.md for the accompaniment dial and, at L1, gives a one-line why per step rather than long explanations"
+      - "Reads (or notes it should read) technical_level from 02-DOCS/wiki/harness/user-profile.md and, being technical, uses technical terms directly with a one-line why per step rather than long explanations or analogies"
       - "Presents the chained phase map: sdd-init -> constitution -> proposal? -> specify -> clarify -> plan -> tasks -> analyze -> implement -> verify -> review -> ship -> archive, with debug/worktrees/parallel on demand"
       - "Includes sdd-init as step zero when 02-DOCS/wiki/sdd/config.yaml is missing, and explains that it detects test commands, strict TDD and .rsc/skill-registry.json"
       - "Applies the invoke rule: a fuzzy idea with no spec on disk routes to specify (and notes constitution runs once per project if not yet present)"
@@ -85,6 +85,6 @@ capability:
       - "Names the three tiers — heavy (deep reasoning), balanced (execution), light (mechanical) — and that each phase has a default tier"
       - "States the default quality-biased mapping: heavy on constitution/plan/analyze/review/debug, balanced on specify/clarify/tasks/implement/verify, light on ship/worktrees/sdd-init"
       - "Says routing is OFF by default (models.enabled:false) and lives in the models block of 02-DOCS/wiki/sdd/config.yaml, written by sdd-init; turning it on is the user's choice"
-      - "Explains the two application layers: programmatic (dispatching Task/parallel subagents on the tier's model, e.g. Claude Code) and advisory (announcing the recommended switch at the phase boundary, gated by the accompaniment dial)"
+      - "Explains the two application layers: programmatic (dispatching Task/parallel subagents on the tier's model, e.g. Claude Code) and advisory (announcing the recommended switch at the phase boundary, in one line)"
       - "Is honest about limits: never switches unasked, never claims a model switch an assistant cannot make, and skips routing on trivial one-line changes"
       - "Points to references/model-routing.md for the full protocol, per-assistant mechanism, and provider→model table rather than inventing model names inline"

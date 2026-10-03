@@ -1,7 +1,7 @@
 import { skillById } from './manifest.js';
 
 const OUTCOMES = {
-  bro: 'Writing that sounds natural and human',
+  unslop: 'Writing for others that sounds natural and human',
   suggest: 'An assistant that proposes what you need as you go',
   harness: 'A tidy workspace: connect and document your company',
   init: 'Guided project bootstrap',
