@@ -58,7 +58,7 @@ The goal is the smallest body that still routes correctly. 400 lines is a ceilin
   in one skill and keeping it in the next is worse than either choice applied uniformly.
 - Decision tables where the flow genuinely branches.
 - Tables specific to *this* skill's phase (e.g. what to show at each checkpoint) — that is not the
-  generic dial.
+  retired verbosity levels.
 - Worked bad/good pairs that teach judgment by demonstration.
 - Result-envelope blocks, chain position, and output contracts where they already exist. Do **not**
   add one that was never there: that is a content change, not a format change.

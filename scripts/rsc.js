@@ -419,7 +419,8 @@ function printNextSteps(targets, ids) {
     say('      → walks you specify → plan → tasks → implement → verify → ship.');
   }
   say(`   ${n++}. From there, work in your own words. orient + suggest stay always-on; unslop is ready on request:`);
-  say('      orient keeps you oriented and explains, suggest proposes missing skills, unslop rewrites text for other people.');
+  say('      orient talks in short stand-alone sentences (technical or with analogies) and draws a diagram if you do not follow;');
+  say('      suggest proposes missing skills; unslop rewrites text you send to other people.');
   say('\n   Add something by hand anytime:    npx @ericrisco/rsc add <skill>');
   say('   Browse the catalog / get picks:   npx @ericrisco/rsc consult "whatever you need"');
   say('────────────────────────────────────────────────────────');
@@ -439,7 +440,7 @@ function printAgentHandoff() {
   say('AGENT, do this now:');
   say('  1. Reload/restart this session so the new skills + hooks load');
   say('     (Claude Code: restart the session · Codex/AGENTS.md tools: next turn).');
-  say('  2. After reload you are EQUIPPED — orient + suggest are always-on (orient explains); unslop is installed to rewrite text for others.');
+  say('  2. After reload you are EQUIPPED — orient + suggest are always-on: short stand-alone answers, a diagram when you do not follow; unslop is installed to rewrite text for others.');
   // Un recibo cuya identidad no cuadra con lo que se aceptó no es fuente de nada: el camino de
   // `onboard` está a salvo porque reconstruye el plan y `identifyPlan` corta, y este no lo hacía.
   // Y va envuelto porque antes esta función no leía nada y no podía tumbar un `install` ya hecho.

@@ -131,6 +131,24 @@ is which one you land in by default, and who decides.
 
 ---
 
+## 🗣️ It talks so you understand
+
+Agents assume you saw their reasoning, and they write too much. rsc fixes the voice, not the reader.
+
+- **Short sentences, one idea each.** The style comes from ASD-STE100, the controlled writing of
+  aircraft maintenance manuals, applied at about 80% and in your language.
+- **Every answer stands alone.** No "that fix" or "the second commit": the answer names the thing,
+  with the minimum context to understand it.
+- **One question at install:** technical, or with analogies. That is the only setting.
+- **A ladder when you do not follow.** Text first. Then one diagram. Then one HTML page. A video
+  only if you ask for it.
+
+Every turn still closes with the compass: where you are, and the next step as a question. The voice
+lives in `orient`, which every harness installs. Text you send to other people (emails, posts,
+READMEs) goes through `unslop` instead: it sounds like a person and carries no AI tells.
+
+---
+
 ## Why this exists
 
 An improvised harness tends to grow by accumulation: more files, more context and more rules, with
@@ -402,6 +420,11 @@ rsc upgrade --dry-run                  # prints the npm install + rsc sync lines
 Running through `npx` (no global install)? There's nothing to upgrade —
 `npx @ericrisco/rsc@latest` always fetches the latest published catalog; just run
 `rsc sync` afterwards if the project already has skills installed.
+
+**From 2.0.x to 2.1.0:** `eli5` and `show-me` became part of `orient`, and `bro` became part of
+`unslop`. The update removes the three old skills (only the copies rsc installed) and installs the
+ones that replace them. An `accompaniment_level` line in your profile is ignored: the only setting
+now is `technical_level`.
 
 Every sync snapshots the project first, so a bad update is always reversible:
 
