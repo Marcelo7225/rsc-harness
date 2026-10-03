@@ -112,7 +112,7 @@
     },
     {
       "fixedIn": "2.0.21",
-      "symptom": "The harness wrote long answers that leaned on its own hidden reasoning, and onboarding asked an accompaniment level few people could answer; it now speaks in short stand-alone sentences, asks only technical or with analogies, and draws a diagram when you do not follow"
+      "symptom": "Answers were long and leaned on hidden reasoning, and onboarding asked an accompaniment level few could answer; now: short stand-alone sentences, one question"
     }
   ]
 }
