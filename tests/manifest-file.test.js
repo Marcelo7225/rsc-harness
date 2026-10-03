@@ -101,10 +101,10 @@ test('installing writes the manifest with the team decision', async () => {
 test('installing into a second assistant merges, never replaces', async () => {
   const d = tmp();
   await applyInstall({ skillIds: ['orient'], target: 'claude', home: d, cwd: d });
-  await applyInstall({ skillIds: ['bro'], target: 'codex', home: d, cwd: d });
+  await applyInstall({ skillIds: ['unslop'], target: 'codex', home: d, cwd: d });
   const m = readManifest(d);
   assert.deepEqual(m.targets.sort(), ['claude', 'codex']);
-  assert.ok(m.skills.includes('orient') && m.skills.includes('bro'));
+  assert.ok(m.skills.includes('orient') && m.skills.includes('unslop'));
 });
 
 test('re-installing the same thing leaves the manifest byte-identical', async () => {

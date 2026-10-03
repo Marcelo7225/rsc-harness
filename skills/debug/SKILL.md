@@ -26,21 +26,17 @@ delegation table below.
 
 ## Model tier — `heavy` (opt-in routing)
 
-This phase's default model tier is **`heavy`** — root-cause diagnosis is deep reasoning. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch per the accompaniment dial when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
+This phase's default model tier is **`heavy`** — root-cause diagnosis is deep reasoning. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch in one line when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
 
-## Read the room first (accompaniment dial)
+## Read the room first (register)
 
-Before diagnosing, read `02-DOCS/wiki/harness/user-profile.md` for the technical + accompaniment
-level and match it; with no profile yet, assume non-technical — narrate the reasoning plainly and
-never apply a behavior-changing fix without a quick confirm. The *method* never changes with the
-dial — the volume does.
+Before diagnosing, read `technical_level` in `02-DOCS/wiki/harness/user-profile.md`; it picks
+technical terms or plain words with analogies. With no profile yet, use analogies. The *method*
+never changes with the register — only the words do.
 
-| Level | While diagnosing you show… | Questions you ask |
-| --- | --- | --- |
-| **L0** terse | the confirmed cause and the one-line fix, once found | none unless you need a missing repro detail |
-| **L1** brief | the cause + one line of *why* it produced this symptom | only what you can't observe yourself (e.g. exact error text) |
-| **L2** decisions | each step's finding (repro, the half that isolated it, the cause) | confirm before a fix that changes behavior beyond the bug |
-| **L3** full | narrate the whole loop, teach the binary-search reasoning aloud | ask to contextualize the environment, recent changes, expectations |
+In the `orient` voice, show: the confirmed cause, one line of *why* it produced this symptom, and
+the fix. Ask only what you can't observe yourself (e.g. exact error text). Confirm before a fix that
+changes behavior beyond the bug.
 
 ## The loop — five steps, never skipped, never reordered
 

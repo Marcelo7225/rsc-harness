@@ -111,7 +111,9 @@ test('a clone rebuilds from the manifest alone', async () => {
   // Was `deepEqual(['bro','orient'])` until 2.0.1: sync now also applies the default skill
   // floor, because a declaration frozen before a skill existed never gains it on its own.
   // The claim under test is that the manifest alone is enough to rebuild — still true.
-  assert.ok(['bro', 'orient'].every((id) => r.synced.includes(id)));
+  // And a manifest that old still names `bro`, retired into `unslop`: it rebuilds the successor.
+  assert.ok(['unslop', 'orient'].every((id) => r.synced.includes(id)));
+  assert.ok(!r.synced.includes('bro'));
   assert.ok(readFileSync(join(d, '.claude', 'skills', 'orient', 'SKILL.md'), 'utf8').length > 0);
 });
 

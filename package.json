@@ -109,6 +109,10 @@
     {
       "fixedIn": "2.0.20",
       "symptom": "In a project whose path contains a space, rsc doctor reported every hook script as missing and exited 1, though the scripts were there and the hooks ran"
+    },
+    {
+      "fixedIn": "2.0.21",
+      "symptom": "The harness wrote long answers that leaned on its own hidden reasoning, and onboarding asked an accompaniment level few people could answer; it now speaks in short stand-alone sentences, asks only technical or with analogies, and draws a diagram when you do not follow"
     }
   ]
 }

@@ -1,6 +1,6 @@
 ---
 name: init
-description: "Use when starting from nothing or pointing rsc at an existing project — the front door. Gauges technical level and the accompaniment dial first (non-technical by default), discovers what the user wants to build or govern (any stack, or a non-code harness: company/ops, research, knowledge, content), writes the profile to 02-DOCS, and installs the skills discovery justified. NOT the scaffolder (that is `harness`), NOT a stack skill."
+description: "Use when starting from nothing or pointing rsc at an existing project — the front door. First asks one question — technical terms or analogies (analogies by default) — then discovers what the user wants to build or govern (any stack, or a non-code harness: company/ops, research, knowledge, content), writes the profile to 02-DOCS, and installs the skills discovery justified. NOT the scaffolder (that is `harness`), NOT a stack skill."
 tags: [init, bootstrap, start, new, setup]
 recommends: [harness]
 profiles: [minimal, core, full]
@@ -22,43 +22,27 @@ It is **domain-agnostic**. The thing being built or governed may be software on 
 non-code harness — running a company, an ops desk, a research program, a knowledge base, a content
 operation. No code required; the same structure governs it. Never assume "project" means "code".
 
-## First contact: two values, set before anything else
+## First contact: one question, set before anything else
 
-The whole harness behaves differently depending on these two. Nothing — no discovery, no
+The whole harness talks differently depending on this answer. Nothing — no discovery, no
 recommendation — happens before the profile exists and `CLAUDE.md` links it.
 
-**Step 1 — Gauge technical level.** Literally the first thing you say, before any discovery, framed
-so nobody feels small. Ask once, in their language:
+**Step 1 — Ask the register.** Literally the first thing you say, before any discovery. Ask once,
+in their language:
 
-> "Antes de nada, para hablarte como te resulte más cómodo: ¿te manejas con código y términos
-> técnicos, o prefieres que te lo explique todo en cristiano? No hay respuesta mala — solo me ayuda
-> a no aburrirte ni perderte."
+> "¿Te hablo en lenguaje técnico o con analogías?"
 
-> "First, so I talk to you the right way: are you comfortable with code and technical terms, or
-> would you rather I explain everything in plain language? There's no wrong answer — it just helps
-> me not bore you or lose you."
+> "Should I talk to you in technical terms or with analogies?"
 
-Record `technical_level: non-technical | mixed | technical`. Until they say otherwise, assume
-non-technical: plain language, analogies over acronyms.
+Record `technical_level: technical` (technical terms used directly) or `non-technical` (plain words
+and everyday analogies). `mixed` stays valid in older profiles and reads like `non-technical`. No
+clear answer → `non-technical`. There is no second question: every skill speaks in the one voice
+`orient` owns (short sentences, one idea each, every answer understandable on its own), and this
+value only picks its register. Full rules and file formats → `references/accompaniment-and-profile.md`.
 
-**Step 2 — Set the accompaniment dial.** Present it and let them pick; describe the options, do not
-just list letters.
+**Step 2 — Persist immediately.** Before discovery, before any recommendation:
 
-| Level | What they get |
-| --- | --- |
-| L0 — cavernícola | Results, almost no explanation. One line of output; no questions beyond hard blockers. |
-| L1 — breve | One line of *why* per step; questions only when genuinely ambiguous. |
-| L2 — explica decisiones | Each relevant decision justified; asks before each significant one. |
-| L3 — acompañamiento total | Explains everything, reasons out loud, asks a lot. Ideal for learning while building. |
-
-Non-technical and silent → default **L3**. Technical and silent → **L1**. `technical_level` is an
-orthogonal modifier: even at L0 a non-technical user gets plain phrasing; even at L3 a technical one
-skips the 101s. Every rsc skill reads these two values and obeys them — L0 means *do it and stop
-talking*. Full rules and file formats → `references/accompaniment-and-profile.md`.
-
-**Step 3 — Persist immediately.** Before discovery, before any recommendation:
-
-- `02-DOCS/wiki/harness/user-profile.md` — the living profile (levels, goals, context, constraints).
+- `02-DOCS/wiki/harness/user-profile.md` — the living profile (register, goals, context, constraints).
 - `02-DOCS/wiki/harness/decisions.md` — append-only. Entries are never edited or deleted.
 - Root `CLAUDE.md` → a **short** `## Knowledge map` pointer: those two read-first entries plus a
   "full index → `02-DOCS/wiki/index.md`" line. Keep it tiny; it loads on every turn, and every other
@@ -68,16 +52,16 @@ talking*. Full rules and file formats → `references/accompaniment-and-profile.
 Greenfield? Create just `02-DOCS/wiki/harness/` to hold those two files. That plus the link is
 everything `init` writes.
 
-**Step 4 — Propose the developer model.** rsc installs a `developer` subagent (the implementation
+**Step 3 — Propose the developer model.** rsc installs a `developer` subagent (the implementation
 worker) for every assistant supporting file-based agents. It runs at the **balanced** tier by
 default — Sonnet on Anthropic tools, the provider's mid model elsewhere — and never the cheapest
-`light` model, which is too weak to build with. Offer once, calibrated to the dial:
+`light` model, which is too weak to build with. Offer once, in one line:
 
 > *"La implementación la hará un sub-agente `developer`. ¿Qué modelo? **balanced / Sonnet** (rápido y
 > económico — recomendado) o **heavy / Opus** (máxima calidad, más caro)."*
 
-Record to `.rsc/developer.json` and re-run install/sync so the agent files adopt it. Skipped (e.g.
-at L0) → `balanced`, which install also writes by default.
+Record to `.rsc/developer.json` and re-run install/sync so the agent files adopt it. Skipped →
+`balanced`, which install also writes by default.
 
 **Opt-out.** A fresh session auto-starts `init` while `user-profile.md` is absent. If the user does
 not want a harness in this repo, write an empty `.rsc/.no-harness` — that silences the auto-start
@@ -90,11 +74,11 @@ For **any** significant decision — deploy target, database, framework, hosting
 documents live — never decide silently and never dump ten options.
 
 1. **Gather the requirements that actually drive the choice.** For a deploy target: expected users,
-   concurrency, budget, data residency, the team's comfort operating servers, scaling needs. Match
-   the number of questions to the dial.
+   concurrency, budget, data residency, the team's comfort operating servers, scaling needs. Ask only
+   the ones that change the choice.
 2. **Present exactly three options** with honest trade-offs: what each is good at, what it costs,
    what it demands of them.
-3. **Recommend one**, matched to their answers and their level, and say why in language they follow.
+3. **Recommend one**, matched to their answers, and say why in their register.
 4. **Log it** to `decisions.md` once they pick.
 
 Canonical deploy example — Hetzner VPS + Coolify (cheapest, total control, you self-manage), Vercel
@@ -110,7 +94,7 @@ PROFILE → DISCOVER → INSTALL → GROUND → HANDOFF
 
 ### Phase 1 — PROFILE
 
-Steps 1-3 above. Do not proceed until `user-profile.md` exists and `CLAUDE.md` links it. The
+Steps 1-2 above. Do not proceed until `user-profile.md` exists and `CLAUDE.md` links it. The
 framing of every later question depends on it, which is why it cannot wait until after discovery.
 
 ### Phase 2 — DISCOVER
@@ -127,7 +111,7 @@ the workspace is empty or holds only stray notes: interview from zero.
 Then the domain. Software (backend, frontend, mobile, agents) or a non-code harness (company/ops,
 research, knowledge, content)? Capture goals, audience, constraints, and any tools already in play.
 Record to `02-DOCS/wiki/harness/` as you go. Questionnaires for both cases →
-`references/discovery.md`. Ask in batches sized to the dial; never dump every question at once.
+`references/discovery.md`. Ask in short batches; never dump every question at once.
 
 ### Phase 3 — INSTALL
 
@@ -163,13 +147,13 @@ means the user starts clean.
    docs instead of guessing from memory. Declined → `.rsc/.no-context7`.
 3. **Skill audit.** Run `npx @ericrisco/rsc audit`. It inventories what is installed here and on the
    machine and flags overlap or skills with no footprint, so the project starts with the right set
-   rather than a pile. Summarize at their level.
+   rather than a pile. Summarize it in their register.
 4. **Tell them about the danger guard.** A `technical_level` of `non-technical` or `mixed` (and the
    state before any profile exists) turns on a `PreToolUse` guard that blocks irreversible commands —
    `rm -rf`, `git push --force`, `git reset --hard`, `DROP`/`TRUNCATE`, `DELETE`/`UPDATE` with no
    `WHERE`, `dd` to a device, `curl | bash` — and asks for a safer alternative. A fully `technical`
    user is never guarded. It turns off only if the user explicitly asks: `.rsc/.no-danger-guard`.
-   Mention it when you set a non-technical level, so a later block is not a surprise.
+   Mention it when you record `non-technical`, so a later block is not a surprise.
 
 ### Phase 5 — HANDOFF
 
@@ -213,6 +197,4 @@ never fails).
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente,
-terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. Nunca termines
-en seco. Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`.
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)

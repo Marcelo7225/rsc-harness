@@ -1,9 +1,8 @@
 skill: unslop
 
-# `unslop` is the named-tell audit of a text that already exists, run before it
-# ships. `bro` is the register pass: sound like a person, in the user's language,
-# fitted to the channel. A bare "bro" is always `bro`; "check this for AI tells
-# before I publish it" is always this skill.
+# `unslop` owns text that leaves the session: the register pass (sound like a person,
+# in the user's language, fitted to the channel) and the named-tell audit before it
+# ships. It absorbed the retired `bro`. How the harness talks to the user is `orient`.
 should_trigger:
   - prompt: "Revisa este README antes de publicarlo y quítale todo lo que huela a IA."
     why: "A pre-publication audit of an existing text is the exact contract, in the user's own words."
@@ -23,14 +22,16 @@ should_trigger:
   - prompt: "Before this goes to the client, strip the puffery and the hedging but keep every number exact."
     why: "A ship gate over existing prose with a preserve-the-facts constraint."
 
-should_not_trigger:
   - prompt: "Bro."
-    route_to: "bro"
-    why: "A bare bro after an answer is the register pass over the last message, not an audit of a supplied text."
+    why: "A bare bro after an answer is the register pass over the last message (the retired bro skill lives here now)."
 
   - prompt: "Haz que este correo suene más cercano y menos formal para un cliente de confianza."
-    route_to: "bro"
-    why: "Choosing a warmer register for a specific relationship is bro's job; no tell is being audited."
+    why: "Choosing a warmer register for a specific relationship and channel is the register pass."
+
+should_not_trigger:
+  - prompt: "No entiendo lo que me acabas de explicar, hazlo más simple."
+    route_to: "orient"
+    why: "How the harness explains things to the user is orient's voice and ladder, not a text for others."
 
   - prompt: "Define how our company should sound across the blog, support replies and job ads."
     route_to: "brand-voice"

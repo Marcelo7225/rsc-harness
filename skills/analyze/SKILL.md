@@ -17,14 +17,9 @@ Sixth phase of the rsc-sdd chain (`constitution → specify → clarify → plan
 
 **Model tier: `heavy`** (adversarial cross-reading). Resolve and apply it per `../sdd/references/model-routing.md`; routing is off unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`.
 
-**Accompaniment dial.** Read `02-DOCS/wiki/harness/user-profile.md` before reporting — default to **L2** and say the harness has not gauged the user yet if there is no profile. The dial flexes how the report reads, never what gets checked; the six analyses always run in full.
+**Register.** Read `technical_level` in `02-DOCS/wiki/harness/user-profile.md` before reporting; with no profile, use analogies and say the harness has not set the register yet. The register changes how the report reads, never what gets checked; the six analyses always run in full.
 
-| Dial | The report renders as |
-| --- | --- |
-| L0 | Finding table only: severity, the two artifacts, the conflict in one line. No prose. |
-| L1 | + a one-line *why it matters* per CRITICAL/HIGH finding. |
-| L2 | + per finding, the recommended resolution phase and the trade-off of leaving it. |
-| L3 | + full walk-through: quote both sides, explain the consequence at implement time in plain language, lay out the options so a non-technical user can choose. |
+The report is the same for every reader: a finding table (severity, the two artifacts, the conflict in one line), a one-line *why it matters* per CRITICAL/HIGH finding, and per finding the recommended resolution phase and the trade-off of leaving it. For a `non-technical` reader, explain the consequence at implement time with an everyday analogy so they can choose.
 
 ## Inputs — locate the four artifacts
 
@@ -89,7 +84,7 @@ Produce a single consistency report:
 
 Write the report to `02-DOCS/wiki/sdd/analysis/<slug>.md` (create the dir if absent) and index it in `02-DOCS/wiki/index.md` under the `sdd/` topic, so the next phase and the harness can find it. It is an OKF v0.1 wiki article: open it with YAML frontmatter carrying a non-empty `type:` (use `type: analysis`), a `timestamp` in ISO 8601, and standard markdown links — never wikilinks. The report is the artifact analyze owns — it is the *only* thing analyze writes. Per-run point-in-time; overwrite on re-run, the wiki keeps history.
 
-Render it at the dial's verbosity. Do not log a decision to `decisions.md` — analyze decides nothing; the phase that resolves the finding logs its own decision.
+Render it in the orient voice, in the user's register. Do not log a decision to `decisions.md` — analyze decides nothing; the phase that resolves the finding logs its own decision.
 
 ## Anti-patterns
 

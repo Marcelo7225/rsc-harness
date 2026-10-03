@@ -45,7 +45,7 @@ should_not_trigger:
     why: "Reading a finished diff for defects is a review, not a change. Nothing here authorises writing, so no feature document is created."
 
 capability:
-  - scenario: "A developer at accompaniment level L2 says: 'Añade exportación a CSV usando los filtros del informe que ya existen.' Show how the lane runs from the first word to delivery."
+  - scenario: "A developer whose profile says technical_level: technical says: 'Añade exportación a CSV usando los filtros del informe que ya existen.' Show how the lane runs from the first word to delivery."
     must_include:
       - "Names the lane out loud in one line before acting, as the decisor requires — this is FTD, not a question and not the chain"
       - "Creates one feature document at 02-DOCS/wiki/ftd/<slug>.md BEFORE the first change, and says which document it created and how many tasks it holds"

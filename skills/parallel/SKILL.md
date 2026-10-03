@@ -120,7 +120,7 @@ This is where parallel work is actually finished. In order:
 
 Only after the combined suite is green is the parallel batch done. Hand the merged, green result back to the phase that called you (usually `implement`, heading for `verify`).
 
-**How loud.** Match the accompaniment level in `02-DOCS/wiki/harness/user-profile.md`: it sets how much of the independence reasoning, the frozen contracts, the briefs and the seam check you narrate, and nothing else. At the tersest level you still run the independence test and the combined-suite gate in full — silently, but completely.
+**What to say.** In chat, say only what the reader needs, in the `orient` voice: the partition, any frozen contract, and each reconcile conflict with its fix — one line each. The register (technical or with analogies) comes from `technical_level` in `02-DOCS/wiki/harness/user-profile.md`. However short the report, you still run the independence test and the combined-suite gate in full.
 
 ## Anti-patterns → STOP
 

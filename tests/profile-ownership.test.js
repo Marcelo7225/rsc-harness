@@ -7,17 +7,18 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 
 // #278 — accepting a plan regenerated user-profile.md from nothing. That file is not the plan's: `init`
-// records there what it learns about the user, and `orient` changes the dial when they ask for more or
-// less. Re-accepting after an update erased both, and dropped from `.rsc.json` any assistant added
+// records there what it learns about the user, and `orient` changes the dial when they ask for it.
+// Re-accepting after an update erased both, and dropped from `.rsc.json` any assistant added
 // outside the plan.
 //
-// #276 — the dial had two names: the CLI wrote `accompaniment`, nine skill files read
-// `accompaniment_level`, so the dial chosen at onboarding was invisible to the compass.
+// #276 — the accompaniment dial once had two names (`accompaniment`, `accompaniment_level`). It is
+// now retired altogether: `technical_level` is the one dial, and both old names are removed on
+// rewrite. The intent of #276 still holds — one name for the dial, the one every skill reads.
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'rsc.js');
 const run = (cwd, args) => spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', input: '' });
-const base = (dial = 'L3', targets = 'claude') => ['onboard', '--target', targets, '--technical-level', 'non-technical',
-  '--accompaniment', dial, '--project-kind', 'operations', '--goal', 'Llevar la facturación'];
+const base = (level = 'non-technical', targets = 'claude') => ['onboard', '--target', targets, '--technical-level', level,
+  '--project-kind', 'operations', '--goal', 'Llevar la facturación'];
 function accept(cwd, args) {
   const planId = /--accept-plan ([a-f0-9]{64})/.exec(run(cwd, args).stdout)?.[1];
   assert.ok(planId, 'fixture: a plan to accept');
@@ -35,20 +36,20 @@ const edit = (cwd, fn) => writeFileSync(profilePath(cwd), fn(profile(cwd)));
 const DISCOVERY = '\n## Descubrimiento\n\n- Dominio: gestoría de tres personas.\n- Intocable: la carpeta CONTABILIDAD/.\n';
 const targets = (cwd) => JSON.parse(readFileSync(join(cwd, '.rsc.json'), 'utf8')).targets.sort();
 
-test('#276 — the profile carries the dial under the one name every skill reads', { timeout: 300000 }, () => {
+test('#276 — the profile carries the one dial under the one name every skill reads', { timeout: 300000 }, () => {
   const cwd = project();
   accept(cwd, base());
-  assert.match(profile(cwd), /^accompaniment_level: L3$/m);
-  assert.doesNotMatch(profile(cwd), /^accompaniment: /m, 'the short name is gone for good');
+  assert.match(profile(cwd), /^technical_level: non-technical$/m);
+  assert.doesNotMatch(profile(cwd), /^accompaniment(_level)?:/m, 'the retired dial is never written');
 });
 
 test('#278 — re-accepting keeps what init discovered and the dial the user adjusted', { timeout: 300000 }, () => {
   const cwd = project();
-  accept(cwd, base('L3'));
-  edit(cwd, (p) => p.replace(/^accompaniment_level: L3$/m, 'accompaniment_level: L1') + DISCOVERY);
-  accept(cwd, base('L3')); // the same plan again, as after an update or a reassess
+  accept(cwd, base('non-technical'));
+  edit(cwd, (p) => p.replace(/^technical_level: non-technical$/m, 'technical_level: technical') + DISCOVERY);
+  accept(cwd, base('non-technical')); // the same plan again, as after an update or a reassess
   const p = profile(cwd);
-  assert.match(p, /^accompaniment_level: L1$/m, 'the plan did not change the dial, so the user’s value stands');
+  assert.match(p, /^technical_level: technical$/m, 'the plan did not change the dial, so the user’s value stands');
   assert.ok(p.includes(DISCOVERY.trim()), 'the discovery survives');
   assert.match(p, /^project_kind: operations$/m);
   assert.match(p, /^Goal: Llevar la facturación$/m);
@@ -56,46 +57,44 @@ test('#278 — re-accepting keeps what init discovered and the dial the user adj
 
 test('#278 — asking for a different dial explicitly still applies it', { timeout: 300000 }, () => {
   const cwd = project();
-  accept(cwd, base('L3'));
-  edit(cwd, (p) => p.replace(/^accompaniment_level: L3$/m, 'accompaniment_level: L1') + DISCOVERY);
-  accept(cwd, base('L2')); // a new decision: the receipt said L3, now the user says L2
-  assert.match(profile(cwd), /^accompaniment_level: L2$/m);
+  accept(cwd, base('non-technical'));
+  edit(cwd, (p) => p.replace(/^technical_level: non-technical$/m, 'technical_level: mixed') + DISCOVERY);
+  accept(cwd, base('technical')); // a new decision: the receipt said non-technical, now the user says technical
+  assert.match(profile(cwd), /^technical_level: technical$/m);
   assert.ok(profile(cwd).includes(DISCOVERY.trim()));
 });
 
-test('#276 — a profile written by an older version is migrated, not duplicated', { timeout: 300000 }, () => {
+test('#276 — a profile written by an older version loses the retired dial, under either name, and nothing else', { timeout: 300000 }, () => {
   const cwd = project();
-  accept(cwd, base('L3'));
-  // What 2.0.15 wrote, plus what init added afterwards.
-  edit(cwd, (p) => p.replace(/^accompaniment_level: L3$/m, 'accompaniment: L3') + DISCOVERY);
-  accept(cwd, base('L3'));
+  accept(cwd, base());
+  // What 2.0.15 and 2.0.20 wrote, plus what init added afterwards.
+  edit(cwd, (p) => p.replace(/^technical_level: (.*)$/m, 'technical_level: $1\naccompaniment: L3\naccompaniment_level: L3') + DISCOVERY);
+  accept(cwd, base());
   const p = profile(cwd);
-  assert.match(p, /^accompaniment_level: L3$/m);
-  assert.doesNotMatch(p, /^accompaniment: /m);
+  assert.doesNotMatch(p, /^accompaniment(_level)?:/m);
+  assert.match(p, /^technical_level: non-technical$/m);
   assert.ok(p.includes(DISCOVERY.trim()));
 });
 
 test('#278 — an assistant added outside the plan stays declared', { timeout: 300000 }, () => {
   const cwd = project();
-  accept(cwd, base('L3', 'claude'));
+  accept(cwd, base('non-technical', 'claude'));
   run(cwd, ['sync', '--target', 'codex']);
   assert.deepEqual(targets(cwd), ['claude', 'codex'], 'fixture: codex declared by sync');
-  accept(cwd, base('L3', 'claude'));
+  accept(cwd, base('non-technical', 'claude'));
   assert.deepEqual(targets(cwd), ['claude', 'codex']);
 });
 
 test('control — an assistant the new plan drops is still removed on purpose', { timeout: 300000 }, () => {
   const cwd = project();
-  accept(cwd, base('L3', 'claude,codex'));
-  accept(cwd, base('L3', 'claude'));
+  accept(cwd, base('non-technical', 'claude,codex'));
+  accept(cwd, base('non-technical', 'claude'));
   assert.deepEqual(targets(cwd), ['claude']);
 });
 
-// The skills that read the dial must also understand the name older onboarding wrote, or a profile
-// that was never re-accepted keeps its dial invisible after the update.
-test('#276 — the skills that read the dial accept the older name', () => {
+// The compass reads the one dial that is left. If it still keyed its register off a retired name, the
+// level chosen at onboarding would be invisible to it — the original #276 failure, one rename later.
+test('#276 — the compass reads technical_level', () => {
   const skills = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills');
-  for (const f of ['orient/SKILL.md', 'orient/references/orientation-contract.md', 'init/references/accompaniment-and-profile.md']) {
-    assert.match(readFileSync(join(skills, f), 'utf8'), /`accompaniment:`/, `${f} must name the legacy key`);
-  }
+  assert.match(readFileSync(join(skills, 'orient/SKILL.md'), 'utf8'), /technical_level/);
 });

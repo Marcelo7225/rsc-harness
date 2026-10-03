@@ -31,7 +31,7 @@ test('normalizes an agent record to the same values used by the terminal adapter
   assert.deepEqual(normalizeOnboarding(answers()), {
     schemaVersion: 1,
     technicalLevel: 'mixed',
-    accompaniment: 'L1',
+    // `accompaniment: 'l1'` is in the answers on purpose: old agents still send it, and it is dropped.
     projectKind: 'software',
     goal: 'Build a small compound-interest website',
     softwareScope: 'small',

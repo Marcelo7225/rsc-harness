@@ -4,8 +4,9 @@
 #
 # WHAT IT DOES (read-only; never edits or creates a file)
 #   Static checks that Phase 1 (PROFILE) actually landed in the workspace:
-#     1. 02-DOCS/wiki/harness/user-profile.md exists and carries technical_level
-#        and accompaniment_level lines.
+#     1. 02-DOCS/wiki/harness/user-profile.md exists and carries a technical_level
+#        line — the one dial (technical, or with analogies). The accompaniment dial
+#        is retired: an old profile that still carries it is not flagged.
 #     2. 02-DOCS/wiki/harness/decisions.md exists (append-only decisions log).
 #     3. Root CLAUDE.md exists and its "## Knowledge map" section links the profile.
 #   Everything is detect-or-skip: a missing workspace piece is a WARNING, never a
@@ -78,11 +79,6 @@ else
     ok "profile records technical_level"
   else
     warn "profile is missing a technical_level line"
-  fi
-  if has "$PROFILE" 'accompaniment_level'; then
-    ok "profile records accompaniment_level"
-  else
-    warn "profile is missing an accompaniment_level line"
   fi
 fi
 

@@ -17,7 +17,7 @@ driver agent feeds prompts to Claude Code and judges the result against the rubr
 
 1. Load **only** `init` into the agent (no other rsc skills available, so routing is honest).
 2. For each `should_trigger` prompt: open a fresh session, paste the prompt verbatim, and
-   record whether `init` activates (the agent should lead with the technical-level question /
+   record whether `init` activates (the agent should lead with the register question /
    profiling, not jump into building). Run **3–5 trials** per prompt.
 3. For each `should_not_trigger` prompt: same procedure, but a **pass** = `init` does NOT fire.
    Where a `route_to` sibling exists, sanity-check that the prompt genuinely belongs there.
@@ -41,8 +41,8 @@ the skill — or these rubrics — needs work.
 
 - This is **LLM-as-judge / human-in-the-loop**, not deterministic. Use a consistent grader
   (same model + rubric) across A/B to keep the comparison fair.
-- The headline differentiators for `init`: technical-level question **first**, the L0–L3
-  accompaniment dial, writing **only** the profile + decisions log + CLAUDE.md Knowledge-map
+- The headline differentiators for `init`: the one register question ("technical or with
+  analogies?") **first**, writing **only** the profile + decisions log + CLAUDE.md Knowledge-map
   link, and **handing off** scaffolding to `the harness skill` (never doing it itself).
 - Watch the key confusable: the built-in `/init` (CLAUDE.md architecture doc generator) is a
   different thing — the rsc `init` does discovery/profiling/recommendation, not codebase docs.

@@ -24,7 +24,7 @@ Read first, always:
 
 | Area | Article |
 |------|---------|
-| User profile (technical + accompaniment level) | `02-DOCS/wiki/harness/user-profile.md` |
+| User profile (register: technical or analogies) | `02-DOCS/wiki/harness/user-profile.md` |
 | SDD constitution (project non-negotiables) | `02-DOCS/wiki/sdd/constitution.md` |
 | **Everything else — full index** | `02-DOCS/wiki/index.md` |
 

@@ -62,7 +62,7 @@ should_not_trigger:
 capability:
   - scenario: "Mid-implement, a FastAPI integration test for the orders endpoint fails intermittently (~3 of 10 runs) with a 500. The user says 'just wrap it in a retry so the suite goes green and we can keep moving'. Diagnose it properly."
     must_include:
-      - "Reads the accompaniment level from 02-DOCS/wiki/harness/user-profile.md (or, absent a profile, notes that and defaults to non-technical / full narration) and adapts verbosity, while keeping the diagnosis method unchanged by the dial."
+      - "Reads technical_level from 02-DOCS/wiki/harness/user-profile.md (or, absent a profile, notes that and uses analogies) and reports cause, why and fix briefly, while keeping the diagnosis method unchanged by the register."
       - "REFUSES the retry/wrap-it shortcut: names that a retry relocates the race and leaves the cause armed, so it does not address the root cause."
       - "REPRODUCE: turns 'intermittent' into a measured rate by running the test N times and recording k/N failures, and captures the verbatim error/stack and exact command."
       - "Frames the flake as having a real cause class — shared state / test-order dependence / a concurrency race / time / network — and sets out to identify which, not to accept intermittency."

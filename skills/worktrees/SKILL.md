@@ -53,10 +53,10 @@ extra directory. The rest of this skill assumes a worktree; the branch path is t
 
 Run this in order. Each check prevents a class of "lost work" you can't easily undo.
 
-1. **Read the accompaniment dial** — `02-DOCS/wiki/harness/user-profile.md` gives the technical +
-   accompaniment level (L0..L3); set your volume from the table below. No profile yet → assume
-   non-technical, explain what a worktree is in one plain sentence before making one. No `02-DOCS/` at all (a worktree can be created in any git repo
-   with no rsc harness present) → skip the dial, assume non-technical, and proceed.
+1. **Read the register** — `technical_level` in `02-DOCS/wiki/harness/user-profile.md` picks
+   technical terms or plain words with analogies (see "Talking about it" below). No profile yet, or
+   no `02-DOCS/` at all (a worktree can be created in any git repo with no rsc harness present) →
+   use analogies: explain what a worktree is in one plain sentence before making one, and proceed.
 2. **Confirm you're in a git repo.** `git rev-parse --is-inside-work-tree`. If not, there's nothing
    to isolate with git — tell the user; don't fabricate a worktree.
 3. **Check the current branch.** `git rev-parse --abbrev-ref HEAD`. On `main`/`master` with work
@@ -130,8 +130,8 @@ npx @ericrisco/rsc worktrees reap
 ```
 
 Either way, the contract is identical: **after this step, the cwd is an isolated branch off a clean
-base, and the default-branch checkout is exactly as it was.** Confirm that out loud (at the dial's
-level) before handing to `implement`.
+base, and the default-branch checkout is exactly as it was.** Confirm that out loud, in
+one line, before handing to `implement`.
 
 ### Cleanup is the default, and it is not yours to judge
 
@@ -169,21 +169,17 @@ a linked worktree (`git rev-parse --git-dir` ≠ `--git-common-dir`), rule out a
 
 ## Model tier — `light` (opt-in routing)
 
-This phase's default model tier is **`light`** — isolating the workspace is mechanical git work. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch per the accompaniment dial when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
+This phase's default model tier is **`light`** — isolating the workspace is mechanical git work. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch in one line when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model. Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
 
-## Adapting to the dial
+## Talking about it
 
-The isolation is identical at every level; only the talking changes.
+The isolation is identical for every reader; only the words change. In the `orient` voice: state
+the branch/dir in one line, add one line of *why* a worktree over a branch (or vice-versa) for this
+case, and confirm the base ref. For a `non-technical` reader, say what a worktree is with an
+everyday analogy (a second copy of the desk, so the first one stays as it was).
 
-| Level | How `worktrees` behaves |
-| --- | --- |
-| **L0** | Create the isolated workspace, state the branch/dir in one line, hand to `implement`. No explanation. |
-| **L1** | Same, plus one line of *why* a worktree over a branch (or vice-versa) for this case. |
-| **L2** | Justify the base-ref choice and the branch-vs-worktree call; surface the dirty-tree decision explicitly. |
-| **L3** | Explain in plain language what a worktree is and why isolation protects their work; ask before touching any uncommitted changes; confirm the base ref. |
-
-At every level, a **dirty tree with the user's uncommitted work is a hard stop for a confirmation** —
-the dial controls verbosity, never whether you check before risking someone's WIP.
+A **dirty tree with the user's uncommitted work is always a hard stop for a confirmation** — no
+wish for brevity removes the check before risking someone's WIP.
 
 ## Anti-patterns → STOP
 

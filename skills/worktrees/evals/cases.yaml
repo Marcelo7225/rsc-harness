@@ -37,7 +37,7 @@ capability:
   - scenario: "User says: 'I'm on main with a clean tree, the plan for the order-reservation feature (slug: order-reservation) is approved, and I'm about to implement it. My editor and a dev server are open against the current files. Set up isolation.' The agent has the worktrees skill loaded and a native worktree tool available."
     must_include:
       - "Runs the pre-flight gate: confirms it's a git repo, checks current branch (main), and checks `git status --short` for tree state before creating anything"
-      - "Reads 02-DOCS/wiki/harness/user-profile.md for the accompaniment dial and matches narration to the level"
+      - "Reads technical_level from 02-DOCS/wiki/harness/user-profile.md and narrates briefly in that register (branch/dir in one line plus one line of why)"
       - "Chooses a WORKTREE over a plain branch and justifies it by the live dev server / open editor on the current files (a branch switch would yank files from the running process)"
       - "Prefers the native worktree tool (EnterWorktree-style) for creation and session-switch, naming it for the slug (feat/order-reservation); states the git `git worktree add -b feat/order-reservation … origin/<default>` fallback if no native tool exists"
       - "Branches from an up-to-date default base (fresh origin/<default>) rather than stale local HEAD, or asks which the user wants"

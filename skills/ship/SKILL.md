@@ -35,7 +35,7 @@ git log -1 --format='%an <%ae>%n%n%b' | grep -iE 'co-authored-by.*(claude|anthro
 
 ## Read these first
 
-1. `02-DOCS/wiki/harness/user-profile.md` — the accompaniment dial (L0..L3). It sets narration only, never whether you run the safety checklist.
+1. `02-DOCS/wiki/harness/user-profile.md` — `technical_level`, the register. It sets the words only, never whether you run the safety checklist.
 2. The **review verdict** for this branch — ship runs only on `APPROVE` or `APPROVE WITH NITS`. `CHANGES REQUESTED` loops back to `implement`, not forward to ship. If there is no verdict on record, say so and treat it as a red flag: do not ship a diff that skipped `../review/SKILL.md` — offer to run it first.
 3. `02-DOCS/wiki/sdd/decisions.md` and the spec/plan slug — so the commit message and PR body describe *what shipped against which spec*, not a vague "various changes".
 
@@ -85,7 +85,7 @@ was reviewed, never that the review was any good.
 
 ## The three landing options — always present exactly three
 
-This mirrors the harness "siempre 3 opciones" pattern. Gather the one fact that changes the answer (does this repo use PRs / require review on `main`?), then present **exactly three** with an honest recommendation matched to the workflow and the accompaniment level.
+This mirrors the harness "siempre 3 opciones" pattern. Gather the one fact that changes the answer (does this repo use PRs / require review on `main`?), then present **exactly three** with an honest recommendation matched to the workflow, in the user's register.
 
 | Option | What it does | Choose it when |
 | --- | --- | --- |
@@ -201,16 +201,11 @@ The commit is the durable record. Make it describe the change and tie it to the 
 
 Closing the branch (PR / merge / cleanup) is mechanical, so this phase's default tier is **`light`**. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`; when it is on, follow `../sdd/references/model-routing.md` for resolving and announcing the switch rather than from memory. Routing off or no profile → honor the session model silently, and skip routing on a one-line change. The Eric-only authorship rule is independent of the model and never relaxes.
 
-## Accompaniment dial (L0..L3)
+## What ship shows
 
-Read the level from `02-DOCS/wiki/harness/user-profile.md`. It changes what you show, **never** the safety checklist or the authorship rule. No profile → default to L2 and proceed; don't stall the ship to ask for a dial setting.
+Read `technical_level` from `02-DOCS/wiki/harness/user-profile.md`. It changes the words, **never** the safety checklist or the authorship rule. No profile → use analogies and proceed; don't stall the ship to ask.
 
-| Level | What ship shows |
-| --- | --- |
-| **L0** | Checklist run silently, recommended option in one line, execute on a yes: `Clean, rebased, authorship Eric. Recommend PR (main is protected). Open it?` |
-| **L1** | The three options as one-liners, with the recommendation and its *why*. |
-| **L2** | The full options table, the checklist results, and why the recommended option fits this repo's workflow. |
-| **L3** | L2 plus teaching, framed for a non-technical owner: what fast-forward vs `--no-ff` does to history, why a protected `main` wants a PR ("asking permission before changing the shared copy"), what squashing trades away. |
+In the `orient` voice: the checklist result in one line, the three options as one-liners, the recommendation and its *why*, then execute on a yes — e.g. `Clean, rebased, authorship Eric. Recommend PR (main is protected). Open it?`. For a `non-technical` owner, explain the recommended option with an analogy: a protected `main` wants a PR ("asking permission before changing the shared copy"). Explain fast-forward vs `--no-ff` or what squashing trades away only when asked.
 
 ## Anti-patterns → STOP
 
@@ -268,4 +263,4 @@ Ship is the end of the SDD loop for a feature. Two onward paths: the merged code
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente, terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)

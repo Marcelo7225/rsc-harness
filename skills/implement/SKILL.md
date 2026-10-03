@@ -42,9 +42,9 @@ back — you do not write feature code anyway.
 3. **Read the skill registry.** Open `.rsc/skill-registry.json` if present. Select only the
    relevant stack/process skills for this task, then digest them into compact rules. If the
    registry is missing, run or recommend `npx @ericrisco/rsc registry refresh` and record the fallback.
-4. **Read the accompaniment dial.** Open `02-DOCS/wiki/harness/user-profile.md` and read the
-   technical + accompaniment level. It sets how loud you are at each checkpoint (see the dial table
-   below). No profile yet → assume non-technical, narrate more, and ask before any irreversible step.
+4. **Read the register.** Open `02-DOCS/wiki/harness/user-profile.md` and read `technical_level`.
+   It picks technical terms or plain words with analogies at each checkpoint (see "Checkpoints"
+   below). No profile yet → use analogies, and ask before any irreversible step.
 5. **Confirm isolation.** Implementation happens on a feature branch or worktree, never directly on
    the default branch. If you are on `main`/`master`, stop and hand to `worktrees` before the first
    commit.
@@ -68,7 +68,7 @@ PROGRESS → append task/test/blocker/decision state to 02-DOCS/wiki/sdd/progres
 COMMIT   → commit this task as one logical unit (authorship = Eric; see ship for the rule).
 REVIEW   → dispatch a fresh reviewer subagent over THIS task's commits (see "Per-task review gate").
            Fold its Critical/Important findings back in before you move on; Minor can wait.
-CHECKPOINT → stop and show: what changed, test output, review verdict, the next task. Wait per the dial.
+CHECKPOINT → stop and show: what changed, test output, review verdict, the next task. Wait for the user.
 ```
 
 The order is load-bearing. **Red before green** is not a suggestion — a test you write *after* the
@@ -254,21 +254,17 @@ gate on a genuinely trivial task (a one-line change), like the rest of the chain
 
 ## Model tier — `balanced` (opt-in routing)
 
-This phase's default model tier is **`balanced`** — it is the bulk of TDD execution: cost-sensitive, with quality balanced handles well. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch per the accompaniment dial when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model (this is where routing pays off most — fan-out runs on `balanced` while a hard sub-problem can be escalated to `heavy`). Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
+This phase's default model tier is **`balanced`** — it is the bulk of TDD execution: cost-sensitive, with quality balanced handles well. Routing is **off** unless `models.enabled: true` in `02-DOCS/wiki/sdd/config.yaml`. When on: resolve this phase's tier (`models.overrides` wins over `models.phases`), map it to a model via `models.tiers`, and apply per `../sdd/references/model-routing.md` — announce the switch in one line when it differs from the session model, and dispatch any `Task`/`parallel` subagents on that model (this is where routing pays off most — fan-out runs on `balanced` while a hard sub-problem can be escalated to `heavy`). Routing off or no profile → honor the session model silently. Never fake a switch a tool can't make; skip routing on a one-line change.
 
-## The accompaniment dial — how loud at each checkpoint
+## Checkpoints — what to say
 
-Read the level from `02-DOCS/wiki/harness/user-profile.md` and match it. Same work, different volume.
+Speak in the `orient` voice, in the register `technical_level` sets. At each checkpoint show: the
+task, tests green or red, the one *why* behind any non-obvious choice, and the next task. Ask only
+where the plan genuinely forked, and confirm before deviating from the plan or doing anything
+irreversible.
 
-| Level | At each checkpoint you show… | Questions you ask |
-| --- | --- | --- |
-| **L0** terse | one line: task done, tests green, moving on | none unless blocked or about to do something irreversible |
-| **L1** brief | task + the one *why* behind any non-obvious choice | only where the plan genuinely forked |
-| **L2** decisions | task + each relevant decision and its trade-off | confirm before deviating from the plan |
-| **L3** full | task + reasoning, test output read aloud, what's next and why | ask to contextualize each decision; teach as you go |
-
-The dial changes verbosity and question count — it **never** changes the engineering. TDD, the
-done-checks, the constitution and decision logging hold at every level, including L0.
+How short you are **never** changes the engineering. TDD, the done-checks, the constitution and
+decision logging hold for every reader.
 
 ## Logging decisions (the 02-DOCS trail)
 
@@ -337,7 +333,7 @@ outranks the plan, and the plan outranks your in-the-moment preference.
 - [ ] Apply progress appended to 02-DOCS/wiki/sdd/progress/<slug>.md
 - [ ] Skill resolution recorded (used/missing/fallback/compact rules)
 - [ ] Committed as one logical unit (authorship = Eric)
-- [ ] Checkpoint shown at the dial's level; next task named
+- [ ] Checkpoint shown in the orient voice; next task named
 ```
 
 ## Result envelope
@@ -383,5 +379,5 @@ the feature done.
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente, terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
 

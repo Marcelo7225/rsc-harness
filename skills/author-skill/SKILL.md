@@ -14,7 +14,7 @@ Where the SDD chain (`specify` → `plan` → … → `ship`) builds *product*, 
 
 **Not this skill — delegate:** a product feature specced or planned → `../specify/SKILL.md`, `../plan/SKILL.md`. An autonomous agent or tool-calling loop → `../building-agents/SKILL.md`. Generic project docs or a wiki article → the `../harness/SKILL.md` 02-DOCS engine. Bootstrapping a workspace or profiling the user → `../init/SKILL.md`.
 
-Read `02-DOCS/wiki/harness/user-profile.md` and work at the accompaniment dial it records; `../init/SKILL.md` owns that dial and sets it. With no profile, default to non-technical framing and ask for the technical level and the dial before going deep — skill authoring is itself a technical act, so many users want more narration here than they do elsewhere.
+Read `02-DOCS/wiki/harness/user-profile.md` and speak in the register its `technical_level` records (technical terms, or plain words with analogies); `../init/SKILL.md` sets it, and `orient` owns the voice. With no profile, use analogies and ask once "technical or with analogies?" — skill authoring is itself a technical act, so a non-technical author needs each convention explained, not just named.
 
 ## What a skill is (the anatomy)
 
@@ -84,7 +84,7 @@ Every new skill MUST end with the orientation footer so the harness never leaves
 
 ## Orientación (siempre)
 
-Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ✅ qué hiciste · 🧭 por qué · ➡️ siguiente, terminando en pregunta), calibrado al dial de `02-DOCS/wiki/harness/user-profile.md`. **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
+Habla con la voz de `orient`: frases cortas, una idea por frase, y cada respuesta se entiende sola. Registro técnico o con analogías según `technical_level` en `02-DOCS/wiki/harness/user-profile.md`. Cierra cada turno con el **bloque-brújula** (📍 dónde estás · ➡️ siguiente, terminando en pregunta; ✅ y 🧭 cuando hay algo hecho o decidido). **Nunca termines en seco.** Protocolo completo: skill `orient` → `skills/orient/references/orientation-contract.md`. (Defiere a `suggest` el "¿instalo la skill que falta?".)
 ````
 
 The full protocol lives once in the `orient` skill; the footer only references it.
@@ -143,7 +143,7 @@ A skill ships only when every box is checked or a miss is consciously justified.
 - [ ] **Every `references/` file linked** inline from the body; none orphaned.
 - [ ] **Every fence language-tagged**; no placeholder/TODO prose; examples concrete.
 - [ ] **Checklist/decision table only where a flow branches**; an **anti-patterns table** present, naming failure modes rather than restating rules.
-- [ ] **Accompaniment dial honored** — reads the profile, adapts verbosity.
+- [ ] **Orient voice honored** — reads `technical_level` from the profile and picks the register; short sentences, every answer understandable on its own.
 - [ ] **Artifacts under `02-DOCS/wiki/`** and indexed in `02-DOCS/wiki/index.md` (the Knowledge map; root `CLAUDE.md` keeps only a short pointer), if the skill produces any.
 - [ ] **Concrete tooling delegated** to the stack skills rather than reinvented.
 - [ ] **evals present** — `cases.yaml` (≥5 `should_trigger` incl. non-obvious, ≥4 `should_not_trigger` each with a real-sibling `route_to`, ≥1 `capability` with a `must_include` rubric) + an honest `README.md`. `scripts/eval-lint.sh` passes — but it only checks presence and the counts (≥5/≥4/≥1) and that those keys are lists; the `route_to`-points-at-a-real-sibling, non-obvious phrasings, and `must_include` quality are yours to verify here, not the linter's.

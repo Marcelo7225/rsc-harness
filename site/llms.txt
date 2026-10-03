@@ -32,7 +32,7 @@ If your user asked you to install rsc / rsc-harness / this harness, do this in o
 1. Work in the ROOT of the user's project, never inside a clone of rsc-harness.
 2. Run: `npx @ericrisco/rsc@latest onboard --target claude,codex`
 3. Relay every `RSC_ONBOARDING_REQUIRED` question. Never choose, invent or default
-   `--technical-level`, `--accompaniment`, `--project-kind`, `--goal` or `--software-scope`.
+   `--technical-level`, `--project-kind`, `--goal` or `--software-scope`.
 4. Rerun with the answers to obtain `RSC_ONBOARDING_PLAN`. This preview writes nothing.
 5. Show every selected, deferred and excluded component with its reason. Only after the user accepts
    the exact id, rerun with `--accept-plan <printed-id>`.
@@ -54,7 +54,7 @@ Already installed: `rsc sync`. Add one skill: `rsc add <id>`. Reassess deferred 
 installing: `rsc reassess`. Recommend without installing: `rsc consult "<what the user wants>"`.
 
 Canonical non-interactive preview:
-`npx @ericrisco/rsc@latest onboard --technical-level mixed --accompaniment L1 --project-kind software --goal "small website" --software-scope small --target codex`
+`npx @ericrisco/rsc@latest onboard --technical-level technical --project-kind software --goal "small website" --software-scope small --target codex`
 
 ## Key links
 
@@ -66,7 +66,7 @@ Canonical non-interactive preview:
 
 ## Facts
 
-- 273 skills; minimal profile 9, core 32, full 273.
+- 270 skills; minimal profile 6, core 29, full 270.
 - 17 supported assistants; 33 agents and 30 command entries in the catalog.
 - Every skill cleared an adversarial behavioral quality gate of at least 8.5/10.
 - Free, MIT, no API key and no global install required.

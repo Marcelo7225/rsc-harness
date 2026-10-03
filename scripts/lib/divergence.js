@@ -3,6 +3,7 @@ import { readState } from './state.js';
 import { targetPaths } from '../../targets/index.js';
 import { existsSync } from 'node:fs';
 import { DEFAULT_SKILL_FLOOR } from './default-skill-floor.js';
+import { replaceRetired } from './retired-skills.js';
 
 // What the team declared versus what is on this machine.
 //
@@ -28,13 +29,16 @@ export function divergence({ cwd = process.cwd(), target, home } = {}) {
 
   const paths = targetPaths(target, home, cwd);
   const installed = new Set(Object.keys(readState(paths.stateFile).skills || {}));
+  // A declaration written before eli5, show-me and bro were retired names them; it is read as
+  // their successors, so a teammate who has not synced yet is not told to install a ghost.
+  const declared = replaceRetired(manifest.skills || []);
 
   return {
-    missing: (manifest.skills || []).filter((id) => !installed.has(id)),
-    extra: [...installed].filter((id) => !(manifest.skills || []).includes(id)),
+    missing: declared.filter((id) => !installed.has(id)),
+    extra: [...installed].filter((id) => !declared.includes(id)),
     ownMissing: (manifest.ownSkills || []).filter((name) => !existsSync(paths.skillDir(name))),
     // Read off the declaration, not off the disk: a skill installed by hand into a harness
     // that still does not declare it is one sync away from being pruned again.
-    floorMissing: DEFAULT_SKILL_FLOOR.filter((id) => !(manifest.skills || []).includes(id)),
+    floorMissing: DEFAULT_SKILL_FLOOR.filter((id) => !declared.includes(id)),
   };
 }

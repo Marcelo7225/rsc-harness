@@ -88,7 +88,7 @@ capability:
         - "The retry loop can spin forever" was raised in review; the implementer replied
           "not a real problem".
     must_include:
-      - "Reads the accompaniment level from 02-DOCS/wiki/harness/user-profile.md and adapts verbosity (verdict legibility unchanged by the dial)."
+      - "Reads technical_level from 02-DOCS/wiki/harness/user-profile.md and picks the register (verdict unchanged by it); reports short, with one line of why per failing check."
       - "LOCATES the three acceptance criteria and the three task done-checks from the material given, and maps each to what the implementer actually reports."
       - "Refuses to accept the implementer's summary as the gate: says the checks must be re-run and the output read, rather than trusting a reported '2 passed'."
       - "Treats the mypy SKIP as UNVERIFIED rather than a pass, and does not let 'everything else was green' stand in for the skipped layer."

@@ -48,8 +48,8 @@ the skill — or these rubrics — needs work.
 - This is **LLM-as-judge / human-in-the-loop**, not deterministic. Use a consistent grader
   (same model + rubric) across A/B to keep the comparison fair.
 - The headline differentiators for `sdd`: it **dispatches, it does not perform a phase**; it
-  states the method ("the artifact is the contract"), reads the **accompaniment dial** and
-  adapts verbosity (not the gates), presents the **chained phase map**, applies the **invoke
+  states the method ("the artifact is the contract"), reads the **register** (`technical_level`)
+  and speaks in the orient voice (never skipping gates), presents the **chained phase map**, applies the **invoke
   rule** and the **skip rules** honestly, and writes artifacts under `02-DOCS/wiki/sdd/`.
 - Key confusables to watch: "write the spec" is `specify`, not `sdd`; "set the principles" is
   `constitution`; "open the PR" is `ship`; "build 01-TOOLS/02-DOCS" is `harness`. If the agent

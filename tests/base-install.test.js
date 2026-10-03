@@ -19,7 +19,8 @@ const readme = readFileSync(join(ROOT, 'README.md'), 'utf8');
 // 9 desde 2026-09-17: `ftd` es el carril por defecto del decisor. Un carril al que la capa always-on
 // enruta y que no está instalado convierte la primera petición de trabajo real en una interrupción
 // para instalarlo — el mismo defecto que `install-single-harness` documenta en el perfil mínimo.
-const BASE = ['bro', 'eli5', 'ftd', 'harness', 'init', 'orient', 'show-me', 'suggest', 'unslop'];
+// 6 since eli5 and show-me folded into `orient` and bro into `unslop` (scripts/lib/retired-skills.js).
+const BASE = ['ftd', 'harness', 'init', 'orient', 'suggest', 'unslop'];
 
 test('the base install is exactly the declared set', () => {
   assert.deepEqual(skillsForProfile(manifest, 'minimal').sort(), [...BASE].sort());
@@ -68,14 +69,15 @@ test('no two base skills compete for the same request', () => {
   assert.deepEqual(offenders, [], `base-install description collisions: ${offenders.join(', ')}`);
 });
 
-test('the boundary between the two writing skills is declared on both sides', () => {
+test('the boundary between the two voice skills is declared on both sides', () => {
   // A one-sided boundary is not a boundary: whichever description the ranker happens to like wins.
-  const bro = readFileSync(join(ROOT, 'skills/bro/SKILL.md'), 'utf8');
+  // `orient` owns how the harness talks to the person; `unslop` owns text that leaves the session.
+  const orient = readFileSync(join(ROOT, 'skills/orient/SKILL.md'), 'utf8');
   const unslop = readFileSync(join(ROOT, 'skills/unslop/SKILL.md'), 'utf8');
-  assert.match(bro, /`unslop`/, 'bro points at unslop');
-  assert.match(unslop, /`bro`/, 'unslop points at bro');
-  const broCases = readFileSync(join(ROOT, 'skills/bro/evals/cases.yaml'), 'utf8');
+  assert.match(orient, /`unslop`/, 'orient points at unslop');
+  assert.match(unslop, /`orient`/, 'unslop points at orient');
+  const orientCases = readFileSync(join(ROOT, 'skills/orient/evals/cases.yaml'), 'utf8');
   const unslopCases = readFileSync(join(ROOT, 'skills/unslop/evals/cases.yaml'), 'utf8');
-  assert.match(broCases, /route_to: "unslop"/, 'bro has a negative that routes to unslop');
-  assert.match(unslopCases, /route_to: "bro"/, 'unslop has a negative that routes to bro');
+  assert.match(orientCases, /route_to: "unslop"/, 'orient has a negative that routes to unslop');
+  assert.match(unslopCases, /route_to: "orient"/, 'unslop has a negative that routes to orient');
 });

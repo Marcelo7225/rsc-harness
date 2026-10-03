@@ -15,6 +15,7 @@ import { listBackups, restoreBackup, whereKept } from './lib/backups.js';
 import { runUpgrade } from './lib/upgrade.js';
 import { diagnose, repair } from './lib/repair.js';
 import { DEFAULT_SKILL_FLOOR, withDefaultSkillFloor } from './lib/default-skill-floor.js';
+import { RETIRED_SKILLS, replaceRetired } from './lib/retired-skills.js';
 import { readManifest, writeManifest } from './lib/manifest-file.js';
 import { versionReport } from './lib/versions.js';
 import {
@@ -38,6 +39,8 @@ if (['--version', '-v', 'version'].includes(rawArgv[0])) {
   process.stdout.write(`${lines.join('\n')}\n`);
   process.exit(0);
 }
+// `--accompaniment` stays listed although the dial is retired: old scripts and agents still pass it,
+// and its value must keep being skipped rather than read as a command or a skill id.
 const GLOBAL_VALUE_FLAGS = new Set([
   '--target', '--technical-level', '--accompaniment', '--project-kind', '--goal', '--goal-base64', '--software-scope', '--accept-plan',
 ]);
@@ -78,7 +81,6 @@ function onboardingInput(targets) {
   return {
     schemaVersion: 1,
     technicalLevel: value('technical-level'),
-    accompaniment: value('accompaniment'),
     projectKind: value('project-kind'),
     goal: value('goal') || (value('goal-base64') ? decodeGoal(value('goal-base64')) : undefined),
     softwareScope: value('software-scope'),
@@ -91,7 +93,7 @@ function onboardingRequired(raw, action = 'onboard') {
     code: 'RSC_ONBOARDING_REQUIRED',
     schemaVersion: 1,
     missing: missingOnboardingFields(raw),
-    recovery: `Run npx @ericrisco/rsc@latest ${action} --technical-level <non-technical|mixed|technical> --accompaniment <L0|L1|L2|L3> --project-kind <software|operations|research|content|mixed> --goal "<what you want>" --target <assistant>`,
+    recovery: `Run npx @ericrisco/rsc@latest ${action} --technical-level <non-technical|mixed|technical> --project-kind <software|operations|research|content|mixed> --goal "<what you want>" --target <assistant>`,
   };
   console.error(`RSC_ONBOARDING_REQUIRED ${JSON.stringify(payload)}`);
   process.exitCode = 2;
@@ -152,7 +154,6 @@ function renderPlan(plan, planId) {
   const pieces = [
     'npx @ericrisco/rsc@latest onboard',
     `--technical-level ${plan.record.technicalLevel}`,
-    `--accompaniment ${plan.record.accompaniment}`,
     `--project-kind ${plan.record.projectKind}`,
     `--goal-base64 ${encodeGoal(plan.record.goal)}`,
     ...(plan.record.softwareScope ? [`--software-scope ${plan.record.softwareScope}`] : []),
@@ -167,16 +168,11 @@ async function runOnboarding(targets) {
   if (isInteractive() && missingOnboardingFields(raw).length) {
     await banner(loadManifest().counts.skills);
     say('Before rsc writes anything, it will learn how to help and show the exact harness plan.');
-    raw.technicalLevel ||= await select('How technical should the conversation be?', [
-      { key: 'non-technical', label: 'Plain language — explain terms and avoid code jargon' },
-      { key: 'mixed', label: 'Mixed — concise explanations with useful technical detail' },
+    // One question about the person, not two: the register. `--technical-level mixed` is still
+    // accepted from the command line and reads like non-technical — with analogies.
+    raw.technicalLevel ||= await select('How should I talk to you?', [
       { key: 'technical', label: 'Technical — assume I am comfortable with code and tooling' },
-    ]);
-    raw.accompaniment ||= await select('How much accompaniment do you want?', [
-      { key: 'L0', label: 'L0 — results only' },
-      { key: 'L1', label: 'L1 — brief reasons, questions only when needed' },
-      { key: 'L2', label: 'L2 — explain each relevant decision' },
-      { key: 'L3', label: 'L3 — guide me through everything' },
+      { key: 'non-technical', label: 'With analogies and plain words — explain terms, no jargon' },
     ]);
     raw.projectKind ||= await select('What are you building or running?', [
       { key: 'software', label: 'Software or a website' },
@@ -194,7 +190,7 @@ async function runOnboarding(targets) {
       ]);
     }
     if (!raw.targets?.length) raw.targets = await selectAgents();
-    if (!raw.technicalLevel || !raw.accompaniment || !raw.projectKind || !raw.goal || !raw.targets?.length) {
+    if (!raw.technicalLevel || !raw.projectKind || !raw.goal || !raw.targets?.length) {
       say('Cancelled — nothing was touched.');
       return;
     }
@@ -289,7 +285,6 @@ function runReassessment() {
   say([
     'npx @ericrisco/rsc@latest onboard',
     `--technical-level ${record.technicalLevel}`,
-    `--accompaniment ${record.accompaniment}`,
     `--project-kind ${record.projectKind}`,
     `--goal-base64 ${encodeGoal(record.goal)}`,
     ...(record.softwareScope ? [`--software-scope ${record.softwareScope}`] : []),
@@ -423,8 +418,8 @@ function printNextSteps(targets, ids) {
     say('        "sdd-init"   then   "I want <your idea>"');
     say('      → walks you specify → plan → tasks → implement → verify → ship.');
   }
-  say(`   ${n++}. From there, work in your own words. orient + suggest stay always-on; bro is ready on request:`);
-  say('      they keep you oriented, propose missing skills, and rewrite in plain human language when asked.');
+  say(`   ${n++}. From there, work in your own words. orient + suggest stay always-on; unslop is ready on request:`);
+  say('      orient keeps you oriented and explains, suggest proposes missing skills, unslop rewrites text for other people.');
   say('\n   Add something by hand anytime:    npx @ericrisco/rsc add <skill>');
   say('   Browse the catalog / get picks:   npx @ericrisco/rsc consult "whatever you need"');
   say('────────────────────────────────────────────────────────');
@@ -444,7 +439,7 @@ function printAgentHandoff() {
   say('AGENT, do this now:');
   say('  1. Reload/restart this session so the new skills + hooks load');
   say('     (Claude Code: restart the session · Codex/AGENTS.md tools: next turn).');
-  say('  2. After reload you are EQUIPPED — orient + suggest are always-on; bro is installed.');
+  say('  2. After reload you are EQUIPPED — orient + suggest are always-on (orient explains); unslop is installed to rewrite text for others.');
   // Un recibo cuya identidad no cuadra con lo que se aceptó no es fuente de nada: el camino de
   // `onboard` está a salvo porque reconstruye el plan y `identifyPlan` corta, y este no lo hacía.
   // Y va envuelto porque antes esta función no leía nada y no podía tumbar un `install` ya hecho.
@@ -665,14 +660,20 @@ async function main() {
       return runReassessment();
     case 'add': {
       if (!hasDeclaredHarness()) return onboardingRequired(onboardingInput(targets));
-      const requested = requestedIds();
+      // A retired id is not unknown: it has a successor, and old notes, scripts and agents still
+      // name it. Say so in one line and add the successor instead.
+      const asked = requestedIds();
+      for (const id of asked.filter((id) => Object.hasOwn(RETIRED_SKILLS, id))) {
+        say(`${id} was retired and replaced by ${RETIRED_SKILLS[id]} — adding ${RETIRED_SKILLS[id]}.`);
+      }
+      const requested = replaceRetired(asked);
       const selected = classifyRequested(requested);
       if (reportUnknown(selected.unknown)) return;
       const ids = withDefaultSkillFloor(selected.skills);
       if (!argv.includes('--force') && !(await guardCollisions(targets, ids))) return;
       const currentManifest = readManifest();
       const receipt = currentManifest?.onboarding;
-      const maintainedIds = receipt ? [...new Set([...(currentManifest.skills || []), ...(receipt.plan.policy.skills || []), ...ids])].sort() : ids;
+      const maintainedIds = receipt ? replaceRetired([...(currentManifest.skills || []), ...(receipt.plan.policy.skills || []), ...ids]).sort() : ids;
       const { policy, onboarding } = governedBy(receipt, maintainedIds);
       for (const t of targets) await applyInstall({ skillIds: maintainedIds, agentIds: selected.agents, target: t, policy, onboarding });
       markMaintenanceDrift(`add ${requested.join(',')}`);
@@ -1143,6 +1144,10 @@ async function main() {
       // `uninstall --all` is an alias for a full purge.
       if (argv.includes('--all')) return void (await runPurge(dry, argv.includes('--with-docs')));
       const selected = classifyRequested(requestedIds());
+      // A retired skill an old install still holds is not unknown: the state file proves it is ours.
+      const held = new Set(listInstalled({ target }));
+      selected.skills.push(...selected.unknown.filter((id) => Object.hasOwn(RETIRED_SKILLS, id) && held.has(id)));
+      selected.unknown = selected.unknown.filter((id) => !selected.skills.includes(id));
       if (reportUnknown(selected.unknown)) return;
       const removed = await uninstall({ skillIds: selected.skills, agentIds: selected.agents, target, dryRun: dry });
       return void say((dry ? 'Would remove:\n' : 'Removed:\n') + (removed.join('\n') || '(nothing)'));

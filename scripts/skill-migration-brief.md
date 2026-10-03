@@ -40,8 +40,8 @@ The goal is the smallest body that still routes correctly. 400 lines is a ceilin
 - Rule banks that restate the flow — "Iron rules (non-negotiable)", "Rationalizations — STOP".
   A rule worth keeping moves next to the step it governs, and says *why* it is absolute instead of
   shouting NON-NEGOTIABLE. A rule in an appendix is skimmed; a rule in context is followed.
-- Re-teaching of what another skill owns. The accompaniment dial belongs to `init`; the SDD method
-  belongs to `sdd`. Read the profile and point; do not restate, or the two drift apart.
+- Re-teaching of what another skill owns. The register (`technical_level` in the profile, set by `init`) and
+  the voice that applies it belong to `orient`; the SDD method belongs to `sdd`. Read the profile and point; do not restate, or the two drift apart.
 - "When to use" sections that restate the description, and trailing reference indexes whose links
   already appear inline at point of use.
 

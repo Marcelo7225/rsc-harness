@@ -41,7 +41,7 @@ should_not_trigger:
 
   - prompt: "I'm starting from scratch and don't know where to begin — help me bootstrap the project."
     route_to: "init"
-    why: "Front-door bootstrapping (gauge the user, set the accompaniment dial, recommend bundles) is init; the constitution runs after the harness exists and the profile is set."
+    why: "Front-door bootstrapping (ask the register question, write the profile, recommend bundles) is init; the constitution runs after the harness exists and the profile is set."
 
   - prompt: "Show me how to actually configure Ruff and pytest with an 80% coverage gate in our FastAPI service."
     route_to: "fastapi"
@@ -61,9 +61,9 @@ should_not_trigger:
 # the file, and ratifies with the user — an ungrounded answer writes a vague,
 # unversioned wall of aspirations.
 capability:
-  - scenario: "Stand up the constitution for a new project that has a Next.js frontend and a FastAPI backend. The harness already wrote 02-DOCS/wiki/stack/nextjs.md and fastapi.md with some conventions. There is a user-profile at L1 (brief)."
+  - scenario: "Stand up the constitution for a new project that has a Next.js frontend and a FastAPI backend. The harness already wrote 02-DOCS/wiki/stack/nextjs.md and fastapi.md with some conventions. There is a user-profile with technical_level: technical."
     must_include:
-      - "Reads 02-DOCS/wiki/harness/user-profile.md and matches L1 verbosity (one line of why per principle, few questions) rather than a long interview."
+      - "Reads 02-DOCS/wiki/harness/user-profile.md and speaks in technical terms, briefly (one line of why per principle, few questions) rather than a long interview."
       - "Runs the reconciliation pass: reads the existing wiki/stack/nextjs.md and fastapi.md, lifts only project-wide non-negotiables, and LINKS those articles instead of pasting their config; surfaces any contradiction for the user to resolve rather than auto-picking."
       - "Every principle is numbered, imperative, and testable (a number, command, or named artifact), not an aspiration like 'write clean code'."
       - "Includes the two fixed principles: git authorship is the human's (no Co-Authored-By AI / generated-with footer, enforced at ship) and significant decisions are logged."

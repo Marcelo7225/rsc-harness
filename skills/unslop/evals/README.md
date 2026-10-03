@@ -1,18 +1,18 @@
 # Evals — unslop
 
-The claim under test is the boundary as much as the capability. `bro` sits directly next to this
-skill in the base install, and a description that blurs them costs every user two owners for one
-turn. Half the negatives here exist to prove the split holds.
+The claim under test is the boundary as much as the capability. `unslop` absorbed the retired `bro`,
+so it owns both the register pass and the audit of text that leaves the session. Its neighbour is
+`orient`, which owns how the harness talks to the user. The negatives prove that split holds.
 
 ## Triggering
 
 Load only `unslop` and run every prompt in 3–5 fresh sessions. A positive passes when `unslop` loads
 in a majority of trials; a negative passes when it stays quiet and the declared `route_to` skill is
-the real owner. Require at least 90% accuracy, and treat any failure on the two `bro` negatives as
-blocking rather than statistical: those are the cases the split was designed for.
+the real owner. Require at least 90% accuracy, and treat any failure on the `orient` negative or on
+the two former `bro` positives as blocking rather than statistical.
 
-Run the mirror direction too. `bro`'s own suite carries a negative that routes here; both must pass
-in the same round, or the boundary only exists on one side.
+Run the mirror direction too. `orient`'s own suite carries a negative that routes here; both must
+pass in the same round, or the boundary only exists on one side.
 
 ## Capability
 

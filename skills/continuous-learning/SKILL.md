@@ -12,7 +12,7 @@ This is the engine that makes the system get better every time it is wrong. When
 
 One premise is load-bearing: **a lesson that lives only in chat is gone at the next compaction.** Verbal reflection only changes future behaviour when it is persisted to memory the agent actually reads next time (this is the Reflexion mechanism — self-reflection written to durable memory, not held in the conversation). In this harness, "memory" is a concrete set of surfaces: a `SKILL.md` body, `02-DOCS/wiki/harness/decisions.md`, `02-DOCS/wiki/harness/user-profile.md`, a root `CLAUDE.md` rule, or a `verify.sh` check. **Chat is not memory.** A lesson is "captured" only when it has landed in one of those.
 
-Read `02-DOCS/wiki/harness/user-profile.md` for the accompaniment dial before you narrate. It governs narration only — the capture loop runs identically at every level.
+Read `technical_level` in `02-DOCS/wiki/harness/user-profile.md` before you narrate, and speak in the `orient` voice in that register. It governs the words only — the capture loop runs identically for every reader.
 
 ## Boundaries
 

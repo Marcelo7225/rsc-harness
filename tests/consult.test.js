@@ -69,14 +69,15 @@ test('ranks project bootstrap intent for starting a web project', async () => {
   assert.ok(ids.includes('nextjs'), `expected nextjs in top 4; got ${ids.join(', ')}`);
 });
 
-test('ranks bro first for human-language rewrite intent across supported phrasing', async () => {
+test('ranks unslop first for making a text sound human, across supported phrasing', async () => {
+  // `bro` was retired into `unslop`: rewriting a text for other people so it sounds like a person.
   const m = loadManifest();
   const queries = [
     'bro, escribe como un humano',
     'escribe como un humano',
     'hazlo más natural y menos robótico',
     'Això sona escrit per una IA. Fes-ho més humà',
-    'rewrite your last answer in plain human language',
+    'rewrite this email in plain human language',
     'say it without all the corporate jargon',
   ];
 
@@ -84,8 +85,8 @@ test('ranks bro first for human-language rewrite intent across supported phrasin
     const ranked = await rank(m, query);
     assert.equal(
       ranked[0]?.id,
-      'bro',
-      `${query} should rank bro first; got ${ranked.slice(0, 6).map((r) => r.id).join(', ')}`,
+      'unslop',
+      `${query} should rank unslop first; got ${ranked.slice(0, 6).map((r) => r.id).join(', ')}`,
     );
   }
 });

@@ -1,17 +1,44 @@
 ---
 name: unslop
-description: "Use when a written text must be audited against a named catalogue of AI tells before it ships: puffery, `not just X but Y`, the rule of three, em dashes, filler, hedging, abstract metaphor nouns. Names each hit and fixes it. NOT the register rewrite in the user's own voice (that is `bro`), NOT a reusable voice guide (that is `brand-voice`)."
-tags: [unslop, ai-tells, editing, audit, slop, publish-check, revisar-texto]
-recommends: [bro, brand-voice, technical-writing]
+description: "Use when a text that leaves the session (email, post, README, message, landing copy) must sound like a person and carry no AI tells: rewrites it in the user's language fitted to the channel and relationship, and audits it against a named catalogue of tells (puffery, `not just X but Y`, rule of three, em dashes, filler, hedging). Fires on 'bro', 'hazlo más humano', 'que no suene a IA', 'más natural', 'unslop this'. NOT how the harness talks to the user (that is `orient`), NOT a reusable voice guide (that is `brand-voice`)."
+tags: [unslop, human-writing, humano, natural-language, plain-language, ai-tells, editing, rewrite, bro, revisar-texto]
+recommends: [brand-voice, technical-writing]
 profiles: [minimal, core, full]
 origin: risco
 ---
 
-# unslop: the named-tell audit a text passes before it ships
+# unslop: text that leaves the session sounds like a person
 
-`bro` decides how a text should *sound*. This decides whether a text still carries the marks of a
-machine, tell by named tell, on the words that are actually there. Run it on anything about to leave
-the session: a README, a post, an email, a landing page, a commit body.
+Two passes over a text someone else will read: the **register** (sound like a person, in this
+language, for this relationship and channel) and the **named-tell audit** (no marks of a machine,
+tell by tell). Run it on anything about to leave the session: a README, a post, an email, a landing
+page, a commit body. How the harness talks to the user is `orient`, not this.
+
+## Find the source without ceremony
+
+A bare "bro", "unslop", "write like a human", "hazlo más natural" points to the assistant's last
+answer. If the user pasted text, work on that. If they asked for new copy, draft it directly. Ask for
+text only when no source exists.
+
+## The register pass
+
+1. **Preserve the payload.** Names, facts, numbers, links, commitments, constraints, uncertainty and
+   necessary warnings stay. Never invent evidence, opinions, anecdotes or certainty to make it flow.
+2. **Match the room.** The user's language, fitted to audience, relationship and channel. A natural
+   legal notice is still precise; a natural Slack message can be loose. Human is not always casual.
+3. **Cut the bot-shaped scaffolding.** Throat-clearing, needless summaries, repeated conclusions,
+   corporate filler, fake enthusiasm, headings or bullets that do not help the reader navigate.
+4. **Restore a real cadence.** Concrete verbs, direct sentences, natural contractions. The words a
+   person in this context would choose, without manufactured slang, typos or choppy fragments.
+
+| Aim | The result |
+| --- | --- |
+| Plain, not simplistic | Easy to follow without losing the idea |
+| Concise, not incomplete | No padding; every load-bearing fact remains |
+| Warm, not performative | Appropriate care without canned empathy |
+| Specific, not decorated | Concrete nouns and verbs instead of hype |
+
+When a text needs both passes: audit first, register last.
 
 ## The pass
 
@@ -96,6 +123,9 @@ Voiceless writing is as obvious as slopped writing. After the cuts, put somethin
 | Strip a term because it sounds technical | Precision lost to style is a defect | Keep the term, explain it once |
 | Touch code, commands, URLs, quotes or regulated wording | Those are not prose | Leave them byte for byte |
 | Claim the result will pass an AI detector | Nobody can promise that | Promise named tells removed, nothing more |
+| Add typos, slang or filler to seem human | It performs humanity and sounds less credible | Match the actual relationship and channel |
+| Use the same casual voice for every audience | A client email, a README and a condolence need different registers | Infer the room before choosing the cadence |
+| Announce and justify every edit | The preamble is the friction the user asked to remove | Lead with the finished words |
 | Flatten a voice the author chose on purpose | Some authors do write long, warm or formal | Match the intended tone, cut only the machine marks |
 
 ## Output boundary
@@ -106,9 +136,8 @@ email or a document by accident.
 
 ## Where this ends
 
-- **`bro`** owns the register pass: make it sound like a person, in the user's language, fitted to the
-  channel and the relationship. A bare "bro" after an answer is always `bro`. This skill is the named
-  audit of a text that already exists, before it goes out.
+- **`orient`** owns how the harness talks to the user: STE-style, short, every answer stands alone.
+  This skill is for text the user sends to someone else.
 - **`brand-voice`** owns the standing voice system across writers and channels.
 - **`technical-writing`** owns structure: what belongs in a tutorial, a reference, a README.
 - **`landing-copy`** owns conversion architecture. Clean its words only after it has chosen them.
