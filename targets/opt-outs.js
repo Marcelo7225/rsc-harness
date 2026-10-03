@@ -18,6 +18,7 @@
 /** Decisions of the project: they belong in `.rsc.json` and are rebuilt in a clone. */
 export const PROJECT_OPT_OUTS = [
   'audit',            // cadence of this project's skill audit
+  'auto-update',      // installing new rsc releases alone: one machine ahead moves the team's catalogVersion
   'claudemd-check',   // the root CLAUDE.md context budget
   'danger-guard',     // foot-gun denial, keyed to the committed user profile
   'feature-gate',     // per-turn re-injection of the SDD gate

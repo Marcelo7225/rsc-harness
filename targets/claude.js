@@ -118,6 +118,8 @@ export function wireHook(paths, sourceMd, policy = {}) {
   // Same reason: session-start imports the reaper for the landed-worktree sweep, so it travels as a
   // sibling too. Missing it does not break startup — the sweep is wrapped — it just goes silent.
   copyFileSync(join(HERE, 'worktree-reaper.mjs'), join(paths.projectRoot, '.rsc', 'worktree-reaper.mjs'));
+  // session-start imports the shared update check, so it travels as a sibling too.
+  copyFileSync(join(HERE, 'auto-update.mjs'), join(paths.projectRoot, '.rsc', 'auto-update.mjs'));
   copyFileSync(join(HERE, 'session-start.mjs'), scriptDest);
   // The one harness file that belongs in the committed tree rather than in `.rsc/`: it is the only
   // thing standing between a clone and seven stack traces, so it has to survive `git clone`.

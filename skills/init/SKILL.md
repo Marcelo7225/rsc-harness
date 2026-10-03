@@ -137,7 +137,7 @@ cargan al arrancar la sesión."* Full skill map and sample printouts → `refere
 
 ### Phase 4 — GROUND
 
-Four checks once the skills are in. The SessionStart hook nudges each of these too; doing them here
+Five checks once the skills are in. The SessionStart hook nudges each of these too; doing them here
 means the user starts clean.
 
 1. **Version control.** No `.git/` → offer `git init`; the SDD chain and the ship guard assume it.
@@ -154,6 +154,15 @@ means the user starts clean.
    `WHERE`, `dd` to a device, `curl | bash` — and asks for a safer alternative. A fully `technical`
    user is never guarded. It turns off only if the user explicitly asks: `.rsc/.no-danger-guard`.
    Mention it when you record `non-technical`, so a later block is not a surprise.
+5. **Automatic updates.** Ask once, yes by default:
+   > *"Cuando salga una versión nueva de rsc, ¿la instalo sola? Las que cambian mucho (major) te las
+   > preguntaré siempre. (sí/no)"*
+
+   > *"When a new rsc version comes out, should I install it on my own? Big ones (major) I will
+   > always ask about. (yes/no)"*
+
+   Yes, or no clear answer → do nothing; it is on. No → create `.rsc/.no-auto-update`: every
+   release then asks. It is a project switch, recorded in `.rsc.json` on the next sync.
 
 ### Phase 5 — HANDOFF
 

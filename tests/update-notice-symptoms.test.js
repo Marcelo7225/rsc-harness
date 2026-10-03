@@ -24,6 +24,8 @@ function project(installed) {
   if (installed) {
     mkdirSync(join(root, '.rsc'), { recursive: true });
     writeFileSync(join(root, '.rsc', '.version'), `${installed}\n`);
+    // These tests read the asking notice, which is what a project with auto-update off gets.
+    writeFileSync(join(root, '.rsc', '.no-auto-update'), '');
   }
   return root;
 }

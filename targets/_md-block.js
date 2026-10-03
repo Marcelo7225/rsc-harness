@@ -13,6 +13,12 @@ const MARK_END = '<!-- rsc-suggest:end -->';
 // The exact separator wireHook writes before an appended block, so unwireHook can take
 // back precisely what it gave and leave the rest of the file untouched.
 const SEAM = '\n\n';
+// Most assistants that read a rules file have no session-start hook, so nothing checks for a new rsc
+// on its own. The agent does it instead. Here and not in suggest's body: the body is paid on every
+// turn by every assistant, Claude Code included, which already checks from its hook.
+export const UPDATE_NOTE = '**rsc updates.** Claude Code, Codex, Gemini CLI, Cursor and OpenCode check for a new rsc on their '
+  + 'own. In any other assistant, run `node .rsc/auto-update.mjs` once on the first turn of a session and relay any '
+  + 'notice it prints in one line; "up to date" needs no mention.\n';
 
 export function writeSkill(id, fromDir, toPath) {
   return linkOrCopy(fromDir, toPath);
@@ -23,7 +29,7 @@ export function wireHook(paths, sourceMd, policy = {}) {
   const body = policy.codeHooks === false
     ? `# rsc-suggest — always-on operations layer\n\nRead \`02-DOCS/wiki/harness/user-profile.md\` before acting. Use \`orient\` to keep the user situated and \`suggest\` to offer a missing skill only when the current task needs it. Close with the configured orientation block.\n`
     : full;
-  const block = `${MARK_START}\n${body}\n${MARK_END}`;
+  const block = `${MARK_START}\n${body}\n${UPDATE_NOTE}\n${MARK_END}`;
   let doc = existsSync(paths.hookTarget) ? readFileSync(paths.hookTarget, 'utf8') : '';
   if (doc.includes(MARK_START)) {
     doc = doc.replace(new RegExp(`${MARK_START}[\\s\\S]*?${MARK_END}`), block);
