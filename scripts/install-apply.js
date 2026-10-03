@@ -22,6 +22,7 @@ import {
 import {
   wireMemory, unwireMemory, memoryManagedPaths, memoryModeFor, memoryEnabledForProject, memoryArtifactsPresent,
 } from '../targets/memory.js';
+import { wireUpdate, unwireUpdate, updateManagedPaths, updateArtifactsPresent } from '../targets/update-wiring.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI_VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
@@ -78,6 +79,7 @@ export function generatedHookFiles({ target, cwd, policy }) {
     join(cwd, '.rsc', 'worklog-checkpoint.mjs'),
     join(cwd, '.rsc', 'hook-once.mjs'),
     join(cwd, '.rsc', 'worktree-reaper.mjs'),
+    join(cwd, '.rsc', 'auto-update.mjs'),
   ];
   // The danger guard is declared on its own terms (#273): present unless the plan says otherwise,
   // whether or not the code guards are.
@@ -95,6 +97,7 @@ export function managedPathsForInstall({ skillIds, agentIds = [], target, home, 
   const out = [paths.stateFile, versionFile(cwd), baseVersionsFile(cwd)];
   if (policy?.context7 === false) out.push(join(cwd, '.rsc', '.no-context7'));
   if (policy?.memory !== false) out.push(...memoryManagedPaths(target, cwd));
+  out.push(...updateManagedPaths(target, cwd));
   if (targetHasAgents(target)) {
     const state = readState(paths.stateFile);
     const explicit = [...new Set([...(state.explicitAgents || readManifest(cwd)?.agents || []), ...agentIds])];
@@ -297,6 +300,8 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
     ? { mode: 'disabled', reason: 'onboarding-policy', paths: unwireMemory(target, cwd) }
     : wireMemory(target, cwd);
   state.memory = { mode: memoryResult.mode, reason: memoryResult.reason, paths: memoryResult.paths };
+  const updateResult = wireUpdate(target, cwd);
+  state.update = { mode: updateResult.mode, ...(updateResult.reason ? { reason: updateResult.reason } : {}) };
   const context7OptOut = join(cwd, '.rsc', '.no-context7');
   if (policy?.context7 === false) {
     mkdirSync(dirname(context7OptOut), { recursive: true });
@@ -596,6 +601,7 @@ export function removeTargetInstall({ target, home, cwd = process.cwd() }) {
   }
   unwireHook(target, paths);
   unwireMemory(target, cwd);
+  unwireUpdate(target, cwd);
   rmSync(paths.stateFile, { force: true });
   const gitignore = join(cwd, '.gitignore');
   if (existsSync(gitignore)) {
@@ -704,8 +710,10 @@ export async function purge({ home, cwd = process.cwd(), withDocs = false, dryRu
     if (!dryRun) {
       removed.push(...unwireHook(target, paths));
       removed.push(...unwireMemory(target, cwd));
+      removed.push(...unwireUpdate(target, cwd));
     } else {
       removed.push(...memoryArtifactsPresent(target, cwd));
+      removed.push(...updateArtifactsPresent(target, cwd));
     }
     // A lost state file also loses proof of ownership. Leave same-named user files
     // behind rather than guessing from a catalog id and deleting their work.

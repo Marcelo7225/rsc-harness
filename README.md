@@ -415,7 +415,13 @@ so rsc does not repair, move or delete them — not even when rebuilding from sc
 A new install asks whether you want this (yes by default). To turn it off later, create
 `.rsc/.no-auto-update`; every release then asks. It is a project decision: it travels in
 `.rsc.json` like the other switches. The update can leave harness files changed in git; rsc never
-commits them for you. Auto-update runs in Claude Code, where the session-start hook lives.
+commits them for you.
+
+Where it runs on its own: **Claude Code, Codex, Gemini CLI, Cursor and OpenCode**, from a
+session-start hook. Every other assistant has no such hook, so the always-on instructions ask the
+agent to run `node .rsc/auto-update.mjs` on its first turn — same rules, but it depends on the agent
+doing it (and some assistants ask your permission before running a command). Codex asks you to
+trust new hooks once.
 
 To update by hand, bump the package, then re-sync what's already wired into your project:
 
