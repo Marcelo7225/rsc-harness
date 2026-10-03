@@ -355,8 +355,9 @@ pinned version. It asks; it does not install anything on its own and it does not
 whatever you sat down to do. Say no and it stops asking on that machine.
 
 Not `@latest`, and the difference is the whole point of sharing: a teammate who clones in three
-months gets what you had, not what shipped since. Upgrading is something a person decides, writes
-into `.rsc.json`, and commits — and then it reaches everyone through git, like any other change.
+months gets what you had, not what shipped since. Once it is built, the same rules as any project
+apply: releases in the same major install themselves (see [Update](#update)), and the new
+`catalogVersion` in `.rsc.json` reaches everyone when somebody commits it.
 
 When someone changes the harness and you `git pull`, `rsc doctor` tells you what no longer
 matches. **Nothing is ever written to your machine by a pull** — you are told, and you decide.
@@ -403,8 +404,20 @@ so rsc does not repair, move or delete them — not even when rebuilding from sc
 
 ## Update
 
-`rsc` is an npm package, so updating is two steps — bump the package, then
-re-sync what's already wired into your project:
+**rsc updates itself.** When a session starts, rsc checks npm for a newer version:
+
+- **Same major** (`2.1.0 → 2.1.1` or `2.2.0`): it installs that exact version in the background.
+  It takes effect in the next session, and that session tells you it happened.
+- **New major** (`2.x → 3.0.0`): it can change how the harness works, so the assistant asks first.
+- **Failed:** the assistant asks instead, and rsc retries once a day. The output is in
+  `.rsc/auto-update.log`.
+
+A new install asks whether you want this (yes by default). To turn it off later, create
+`.rsc/.no-auto-update`; every release then asks. It is a project decision: it travels in
+`.rsc.json` like the other switches. The update can leave harness files changed in git; rsc never
+commits them for you. Auto-update runs in Claude Code, where the session-start hook lives.
+
+To update by hand, bump the package, then re-sync what's already wired into your project:
 
 ```bash
 npm install -g @ericrisco/rsc@latest   # global install: pull the newest catalog

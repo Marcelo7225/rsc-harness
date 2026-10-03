@@ -98,6 +98,7 @@ test('session-start: update banner when a newer version is available', () => {
   const root = mkdtempSync(join(tmpdir(), 'rsc-upd-'));
   mkdirSync(join(root, '.rsc'), { recursive: true });
   writeFileSync(join(root, '.rsc/.version'), '0.1.0\n');
+  writeFileSync(join(root, '.rsc/.no-auto-update'), ''); // the asking notice is the opted-out path
   const out = runSessionStart(root, { RSC_NO_UPDATE_CHECK: '', RSC_LATEST: '0.2.0' });
   assert.ok(out.includes('rsc update available'), 'notifies when a newer version exists');
   assert.ok(out.includes('0.2.0') && out.includes('0.1.0'), 'shows latest and installed versions');
