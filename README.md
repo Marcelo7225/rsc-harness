@@ -98,9 +98,9 @@ before anything is written.
 
 ---
 
-## 🛣️ Three lanes, and the harness never picks the expensive one for you
+## 🛣️ Three lanes, and the agent picks the right one for you
 
-<img src="https://raw.githubusercontent.com/ericrisco/rsc-harness/main/site/lanes.svg" alt="The rsc lane decisor: a request is classified into answer (read-only), FTD (the default lane, one feature document) or SDD (the ten-phase chain, which only the user selects)." width="960">
+<img src="https://raw.githubusercontent.com/ericrisco/rsc-harness/main/site/lanes.svg" alt="The rsc lane decisor: the agent classifies each request into answer (read-only), FTD (simple change, one feature document) or SDD (the ten-phase chain for big or complex work, entered by the agent; you approve the spec)." width="960">
 
 Every turn takes exactly one lane, and your agent names the one it took in a line.
 
@@ -111,11 +111,14 @@ Every turn takes exactly one lane, and your agent names the one it took in a lin
 2. **FTD — Fast-Track Development.** The request authorises a change. This is the default for
    ordinary work and needs no ceremony. One feature document per feature holds intent, scope, a
    checklist, the evidence and the next step. Tasks are checked off against observed proof, never
-   against intention. A branch if the work writes code; nothing if it only touches docs or config.
-3. **SDD — the ten-phase chain.** Unchanged, and **the harness never enters it alone.** It proposes
-   the chain only when a durable spec, plan and task list would remove a *substantial* ambiguity —
-   a test of usefulness, not of size — and enters it only when you ask for it or accept that
-   proposal. Size, file count and perceived risk never select it on their own.
+   against intention. For the simple changes.
+3. **SDD — the ten-phase chain.** For the big or complex: several decisions that affect each other,
+   or doubts that change the result. **The agent enters it on its own** — you never have to decide
+   which method to use. Inside, you still decide *what* gets built: you approve the spec and answer
+   the clarifying questions, then choose to review every phase yourself or let it run on autopilot
+   to verified code. Publishing always asks.
+
+The agent says which lane it took and why, in one line. Ask for the other one and it switches.
 
 **Isolation cleans itself up.** When a lane opens a branch or a worktree, you no longer have to
 remember to retire it: a `post-merge` hook does it the moment the work lands on the trunk, on both
@@ -124,10 +127,9 @@ landed and holds nothing unsaved; anything it refuses tells you why. The previou
 agent to run the cleanup at the end of a long phase, and that step was skipped on both features that
 reached it.
 
-Earlier versions routed everything that sounded like building into the chain. That contradicted the
-project's own first rule — friction is proportional to risk — and a harness that interrupts the 80%
-that is harmless gets switched off, which protects nothing. Both lanes are still here; what changed
-is which one you land in by default, and who decides.
+Earlier versions asked you to accept a proposal before entering the chain. People do not want to
+choose a method; they want the work done right. Since 3.0 the agent chooses, and you keep the part
+that is genuinely yours: deciding what is built.
 
 ---
 

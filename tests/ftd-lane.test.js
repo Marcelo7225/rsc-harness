@@ -35,11 +35,11 @@ test('2 · the gate no longer routes all change intent into the chain', () => {
     'this is the sentence P7 has been contradicting since it was written');
 });
 
-test('3 · the gate never says the harness may enter the chain on its own', () => {
-  // Gentle-AI abandoned size and risk as selectors for a reason, and the user chose the same rule:
-  // the harness may PROPOSE the chain, the human selects it.
-  assert.match(GATE, /propose|propon/i, 'proposing is the harness\'s half');
-  assert.match(GATE, /accept|acepta|explicit|explícit/i, 'selecting is the human\'s');
+test('3 · the gate says the agent picks the lane, and the person keeps the spec', () => {
+  // Reversed in 3.0 (team-safe-default, clarify P1): Eric does not want people choosing a method.
+  // The agent selects the lane and says why; inside SDD the person still approves spec and clarify.
+  assert.match(GATE, /YOU pick the lane/, 'selecting is the agent\'s');
+  assert.match(GATE, /spec \+ clarify approved/, 'the WHAT stays the person\'s');
 });
 
 test('4 · and it did not get bigger doing it', () => {

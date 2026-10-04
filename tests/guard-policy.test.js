@@ -51,8 +51,9 @@ test('#273 — a technical operations project is not given a guard it would neve
   assert.equal(existsSync(join(cwd, '.rsc', 'danger-guard.mjs')), false);
 });
 
-test('control — a non-technical software project keeps all three guards', { timeout: 300000 }, () => {
-  assert.deepEqual(guards(onboarded({ level: 'non-technical', kind: 'software' })), ['danger-guard', 'gitmoji-guard', 'ship-guard']);
+test('control — a non-technical software project keeps all four guards', { timeout: 300000 }, () => {
+  // branch-guard joined the code guards in 3.0 (team-safe-default A and B).
+  assert.deepEqual(guards(onboarded({ level: 'non-technical', kind: 'software' })), ['branch-guard', 'danger-guard', 'gitmoji-guard', 'ship-guard']);
 });
 
 test('#274 — repair and sync agree with the accepted plan, and with each other', { timeout: 300000 }, () => {

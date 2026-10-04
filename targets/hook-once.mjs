@@ -94,12 +94,11 @@ Classify this turn before acting, and name the lane in one line.
 - Asks for information — explain, compare, audit, review, propose? -> Answer.
   Write nothing and create no artifact. Change intent unclear -> ask one
   question and stay read-only; ambiguity slows the lane, it never raises it.
-- Authorises a change? -> FTD (Fast-Track Development). One feature document,
-  tasks checked off only against observed proof, a branch if it writes code.
-- SDD, the ten-phase chain, is never entered by the harness alone. Propose it
-  only when durable spec/plan/tasks would remove a substantial ambiguity, and
-  enter it only on an explicit request or an accepted proposal. Size, file
-  count and risk never select it.
+- Authorises a change? YOU pick the lane, say it and why: simple -> FTD (one
+  feature document, tasks checked off against observed proof); big or
+  interlocking decisions -> SDD (spec + clarify approved, then autopilot or not).
+- Complex/production: no commits on the default branch, branch + PR. Simple:
+  default branch. Another session here: .worktrees/<branch>.
 Method: \`ftd\` · chain: \`sdd\` · full decisor in the always-on \`suggest\` body.
 =================================================
 `;

@@ -3,7 +3,7 @@
   "lanes": {
     "answer": "information only; writes nothing, creates no artifact",
     "ftd": "authorised change, ordinary; one feature document",
-    "sdd": "the ten-phase chain, by explicit request or accepted proposal only"
+    "sdd": "the ten-phase chain, entered by the agent for big or complex work"
   },
   "cases": [
     { "request": "¿Por qué el login tarda tanto en producción?", "expect": "answer", "why": "investigation; nothing authorises a change" },
@@ -19,6 +19,6 @@
     { "request": "Migra los tres endpoints al nuevo formato de respuesta", "expect": "ftd", "why": "many files, but nothing a spec would settle that the code does not" },
     { "request": "Quiero especificar bien el sistema de permisos antes de tocar nada", "expect": "sdd", "why": "explicit request for the chain" },
     { "request": "Vamos a hacer una spec de esto", "expect": "sdd", "why": "explicit request, stated in the user's own words" },
-    { "request": "No tengo claro si los permisos van por rol o por recurso, y afecta al esquema, a la API y a la UI", "expect": "sdd", "why": "propose the chain: durable artifacts would settle a substantial ambiguity, and only an accepted proposal enters it" }
+    { "request": "No tengo claro si los permisos van por rol o por recurso, y afecta al esquema, a la API y a la UI", "expect": "sdd", "why": "enter the chain: several interlocking decisions that durable artifacts would settle; the agent enters it and says why" }
   ]
 }

@@ -258,6 +258,39 @@ function activeConcurrent(records, sessionId, target, worktree, now) {
     && !record?.timestamps?.completedAt && new Date(record?.timestamps?.updatedAt || 0).getTime() >= recent);
 }
 
+/** How long a session counts as "working here" after its last recorded event (team-safe-default B). */
+export const ACTIVE_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * Other sessions working in THIS checkout right now: any assistant with rsc, same worktree, an event
+ * in the last 30 minutes, not closed, and not the asking session itself. It answers WHO is working,
+ * never WHAT is in the project (constitution P3), reads only the local journal (no network, no
+ * content), and its worst failure is one worktree too many or too few.
+ *
+ * A session that only talks has no record — the journal only writes when there is work — and that is
+ * the right blind spot: the harm this prevents is switching branches under a session that is EDITING.
+ */
+export function otherActiveSessions(input = {}) {
+  try {
+    const cwd = resolve(input.cwd || process.cwd());
+    const top = git(resolve(input.worktreeCwd || cwd), ['rev-parse', '--show-toplevel']);
+    if (!top.ok) return [];
+    const here = resolve(top.out);
+    const store = chooseMemoryRoot(cwd);
+    if (!existsSync(store.root)) return [];
+    const now = new Date(input.now || Date.now()).getTime();
+    const windowMs = Number.isFinite(input.windowMs) ? input.windowMs : ACTIVE_WINDOW_MS;
+    return readRecords(store.root)
+      .filter((r) => r.worktree === here)
+      .filter((r) => !(r.sessionId === input.sessionId && r.target === input.target))
+      .filter((r) => !r.timestamps?.completedAt)
+      .filter((r) => now - new Date(r.timestamps?.updatedAt || 0).getTime() <= windowMs)
+      .map((r) => ({ target: r.target, sessionId: r.sessionId, branch: r.branch, updatedAt: r.timestamps.updatedAt }));
+  } catch {
+    return [];
+  }
+}
+
 export function validateSessionRecord(record) {
   const errors = [];
   if (!record || typeof record !== 'object' || Array.isArray(record)) return ['record: object required'];

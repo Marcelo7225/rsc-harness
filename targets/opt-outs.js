@@ -25,7 +25,9 @@ export const PROJECT_OPT_OUTS = [
   'gitmoji',          // the commit-message convention
   'knowledge-sync',   // 01-TOOLS/ + 02-DOCS/ sync: one person off and the team stops seeing their work
   'ship-guard',       // branch/trunk discipline
+  'trunk-guard',      // «desbloquea main»: the default branch open for the agent, for the whole team
   'worktree-cleanup', // the reaper's notice (it only ever names, never acts)
+  'worktree-isolation', // «no uses worktrees»: same-folder sessions allowed to share a checkout
 ];
 
 /** Decisions of one machine: never written to the manifest, never applied from it. */

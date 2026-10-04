@@ -3,6 +3,12 @@
 // thinking about git. What you change goes up when your turn ends; what others change comes down
 // before your next message.
 //
+// It never touches the default branch (team-safe-default D: assume it is protected). Knowledge travels
+// between people through one exchange branch on the remote, `rsc/knowledge`: up to it, down from it,
+// into whatever branch each person is on. It reaches the default branch inside everybody's ordinary
+// pull requests — every working branch already carries it, so whichever merges first takes it there,
+// and the next one carries the same content and does not conflict.
+//
 // On by default, and that is a decision with a price, so the price is kept small on purpose:
 //   - it only ever touches KNOWLEDGE paths, and never the personal profile;
 //   - it never pushes a commit that is not its own — your unpushed code stays unpushed;
@@ -19,8 +25,8 @@
 //   - what touches YOUR FILES — committing your changes, applying somebody else's — is local, fast,
 //     and runs inside the hook, while nobody else is editing;
 //   - what touches THE NETWORK — fetch, push — runs detached, and never touches the working tree or
-//     the index: the push is replayed on a throwaway index on top of the remote branch (`commit-tree`),
-//     which is also what lets it reach the default branch from whatever branch you are on.
+//     the index: the push is replayed on a throwaway index on top of `rsc/knowledge` (`commit-tree`),
+//     which is also what lets it go up from whatever branch you are on without carrying that branch.
 // The cost: somebody else's change reaches you one message late.
 //
 // Standalone on purpose: hooks are materialized file by file under `.rsc/`, so this imports nothing
@@ -32,6 +38,7 @@ import {
 } from 'node:fs';
 import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { trunkClosed } from './trunk-policy.mjs';
 
 /** What syncs on its own. Everything else is ordinary git, decided by a person. */
 export const KNOWLEDGE = Object.freeze(['01-TOOLS/', '02-DOCS/wiki/', '02-DOCS/attachments/']);
@@ -39,6 +46,8 @@ export const KNOWLEDGE = Object.freeze(['01-TOOLS/', '02-DOCS/wiki/', '02-DOCS/a
 export const PERSONAL = Object.freeze(['02-DOCS/wiki/harness/user-profile.md']);
 export const OPT_OUT = '.no-knowledge-sync';
 export const SKIP_CI = '[skip ci]';
+/** The exchange branch on the remote. Fixed, in every project (spec, clarify P7). */
+export const KNOWLEDGE_BRANCH = 'rsc/knowledge';
 
 const STATE = 'knowledge-sync.json';
 const LOCK = 'knowledge-sync.lock';
@@ -90,7 +99,6 @@ function busy(root) {
   return false;
 }
 
-const isAncestor = (root, a, b) => run(root, ['merge-base', '--is-ancestor', a, b]).ok;
 const blob = (root, rev, path) => line(root, ['rev-parse', '--verify', '--quiet', `${rev}:${path}`]);
 const worktreeBlob = (root, path) => (existsSync(join(root, path)) ? line(root, ['hash-object', '--', path]) : null);
 
@@ -99,7 +107,7 @@ const worktreeBlob = (root, path) => (existsSync(join(root, path)) ? line(root, 
 function readState(root) {
   let s = {};
   try { s = JSON.parse(readFileSync(join(root, '.rsc', STATE), 'utf8')); } catch { /* first run */ }
-  return { announced: false, seen: null, queue: [], ours: [], notices: [], lastFetch: 0, notifiedTip: null, ...s };
+  return { announced: false, seen: null, queue: [], ours: [], notices: [], lastFetch: 0, ...s };
 }
 
 function writeState(root, s) {
@@ -184,16 +192,38 @@ function summary(files) {
   return listed(names, 3);
 }
 
-/** Commit your knowledge changes on the current branch. Local and fast; returns the new SHA or null. */
+/**
+ * Commit your knowledge changes so they can go up. Local and fast; returns the new SHA or null.
+ *
+ * On a default branch that is closed for the agent (trunk-policy), nothing is committed there: the
+ * commit is built on a throwaway index from HEAD plus the knowledge files and left on no branch. It
+ * goes up like any other; the files stay modified until the agent commits on a branch (regla A).
+ * Repeating it while they stay modified is a no-op upstream — the content is already there.
+ */
 export function commitLocal(root, s) {
-  if (line(root, ['rev-parse', '--abbrev-ref', 'HEAD']) === 'HEAD') return null; // detached
+  const branch = line(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (branch === 'HEAD') return null; // detached
   const files = changedKnowledge(root).slice(0, MAX_FILES);
   if (!files.length) return null;
+  const message = (names) => `📝 docs(auto): ${summary(names)} ${SKIP_CI}`;
+  if (branch === defaultBranch(root) && trunkClosed(root)) {
+    const env = { GIT_INDEX_FILE: join(root, '.rsc', 'knowledge-sync.snap.index') };
+    try {
+      if (!run(root, ['read-tree', 'HEAD'], { env }).ok) return null;
+      git(root, ['--literal-pathspecs', 'add', '-A', '--', ...files], { env });
+      const tree = line(root, ['write-tree'], { env });
+      if (!tree || tree === line(root, ['rev-parse', 'HEAD^{tree}'])) return null;
+      const sha = git(root, ['commit-tree', tree, '-p', 'HEAD', '-F', '-'], { input: message(files) }).trim();
+      s.queue.push(sha);
+      return sha;
+    } finally {
+      try { unlinkSync(env.GIT_INDEX_FILE); } catch { /* never created */ }
+    }
+  }
   git(root, ['--literal-pathspecs', 'add', '-A', '--', ...files]);
   const staged = zlist(git(root, ['--literal-pathspecs', 'diff', '--cached', '--name-only', '-z', '--', ...files]));
   if (!staged.length) return null;
-  git(root, ['--literal-pathspecs', 'commit', '--quiet', '--no-verify', '--only',
-    '-m', `📝 docs(auto): ${summary(staged)} ${SKIP_CI}`, '--', ...staged]);
+  git(root, ['--literal-pathspecs', 'commit', '--quiet', '--no-verify', '--only', '-m', message(staged), '--', ...staged]);
   const sha = line(root, ['rev-parse', 'HEAD']);
   s.queue.push(sha);
   return sha;
@@ -214,7 +244,12 @@ function replay(root, base, sha) {
   const env = { GIT_INDEX_FILE: join(root, '.rsc', 'knowledge-sync.index') };
   try {
     if (!run(root, ['read-tree', base], { env }).ok) return null;
-    if (!run(root, ['apply', '--cached', '-'], { env, input: patch.out, timeout: NET_TIMEOUT_MS }).ok) return null;
+    if (!run(root, ['apply', '--cached', '-'], { env, input: patch.out, timeout: NET_TIMEOUT_MS }).ok) {
+      // Not a conflict if the content is already there — the same change going up a second time (a
+      // closed default branch keeps the files modified, so every turn offers them again).
+      const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', `${sha}^`, sha]));
+      return files.every((f) => blob(root, sha, f) === blob(root, base, f)) ? line(root, ['rev-parse', `${base}^{tree}`]) : null;
+    }
     return line(root, ['write-tree'], { env });
   } finally {
     try { unlinkSync(env.GIT_INDEX_FILE); } catch { /* never created */ }
@@ -222,116 +257,88 @@ function replay(root, base, sha) {
 }
 
 /**
- * Put the queued commits on the remote default branch. Never touches the working tree or the index.
- *
- * Fast path: on the default branch, with nothing but our own commits ahead of the remote, push HEAD
- * as it is — same SHAs, clean history. Otherwise each queued commit is replayed on top of the remote
- * tip (`replay`), which is how a commit made on `feat/x` reaches `main` without carrying
- * `feat/x` along, and how your unpushed code never leaves the machine.
+ * Put the queued commits on `rsc/knowledge`. Never the default branch; never the working tree or the
+ * index. Each queued commit is replayed on top of the exchange branch (`replay`), which is how a
+ * commit made on `feat/x` goes up without `feat/x`, and how your unpushed code never leaves the
+ * machine. The exchange branch is born from the remote default branch the first time, and reborn the
+ * same way if somebody deletes it.
  */
 export function ship(root, s) {
-  const def = defaultBranch(root) || line(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  if (!def || def === 'HEAD') return;
+  const def = defaultBranch(root);
+  if (!def) return;
   const fetched = run(root, ['fetch', '--quiet', 'origin', def], { timeout: NET_TIMEOUT_MS });
-  if (!s.queue.length) return;
-  const remoteRef = `refs/remotes/origin/${def}`;
-  const remoteTip = line(root, ['rev-parse', '--verify', '--quiet', remoteRef]);
-
-  if (!remoteTip) { // a remote with no branch yet: the first push creates it
-    if (!fetched.ok && !/couldn't find remote ref/i.test(fetched.err)) return;
-    if (line(root, ['rev-parse', '--abbrev-ref', 'HEAD']) !== def) return;
-    const r = run(root, ['push', '--quiet', 'origin', `HEAD:refs/heads/${def}`], { timeout: NET_TIMEOUT_MS });
-    if (r.ok) { s.ours.push(...s.queue); s.queue = []; }
-    return;
-  }
   if (!fetched.ok) return; // offline: the queue goes up on a later turn
+  if (!s.queue.length) return;
+  const ref = `refs/remotes/origin/${KNOWLEDGE_BRANCH}`;
 
   for (let attempt = 0; attempt < 2; attempt++) {
-    const tip = line(root, ['rev-parse', remoteRef]);
-    const ahead = git(root, ['rev-list', `${tip}..HEAD`]).split('\n').filter(Boolean);
-    const onDefault = line(root, ['rev-parse', '--abbrev-ref', 'HEAD']) === def;
-    if (onDefault && ahead.length && ahead.every((c) => s.queue.includes(c)) && isAncestor(root, tip, 'HEAD')) {
-      const r = run(root, ['push', '--quiet', 'origin', `HEAD:refs/heads/${def}`], { timeout: NET_TIMEOUT_MS });
-      if (r.ok) { s.ours.push(...ahead); s.queue = []; return; }
-    } else {
-      let base = tip;
-      const built = [];
-      const kept = [];
-      for (const sha of s.queue) {
-        if (!line(root, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`])) continue; // rewritten away
-        const tree = replay(root, base, sha);
-        if (tree === null) {
-          const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha]));
-          note(s, `No he podido subir ${listed(files)}: choca con un cambio que ya está en ${def}. ` +
-            'Tu versión sigue aquí; hay que juntarlas a mano.');
-          continue;
-        }
-        if (tree === line(root, ['rev-parse', `${base}^{tree}`])) { kept.push(sha); continue; } // already there
-        const [name, email, date, ...body] = git(root, ['log', '-1', '--format=%an%n%ae%n%aI%n%B', sha]).split('\n');
-        base = git(root, ['commit-tree', tree, '-p', base, '-F', '-'], {
-          input: body.join('\n'),
-          env: { GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_AUTHOR_DATE: date },
-        }).trim();
-        built.push(base);
+    const k = run(root, ['fetch', '--quiet', 'origin', `+refs/heads/${KNOWLEDGE_BRANCH}:${ref}`], { timeout: NET_TIMEOUT_MS });
+    if (!k.ok && !/couldn't find remote ref/i.test(k.err)) return;
+    if (!k.ok) run(root, ['update-ref', '-d', ref]); // deleted upstream: reborn from the default branch
+    const tip = line(root, ['rev-parse', '--verify', '--quiet', ref]) || line(root, ['rev-parse', `refs/remotes/origin/${def}`]);
+    if (!tip) return;
+    let base = tip;
+    const built = [];
+    const kept = [];
+    for (const sha of s.queue) {
+      if (!line(root, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`])) continue; // rewritten away
+      const tree = replay(root, base, sha);
+      if (tree === null) {
+        const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha]));
+        note(s, `No he podido subir ${listed(files)}: choca con un cambio que ya está en ${KNOWLEDGE_BRANCH}. ` +
+          'Tu versión sigue aquí; hay que juntarlas a mano.');
+        continue;
       }
-      if (base === tip) { s.ours.push(...kept); s.queue = []; return; }
-      const r = run(root, ['push', '--quiet', 'origin', `${base}:refs/heads/${def}`], { timeout: NET_TIMEOUT_MS });
-      if (r.ok) {
-        run(root, ['update-ref', remoteRef, base]);
-        s.ours.push(...built, ...kept);
-        s.queue = [];
-        return;
-      }
+      if (tree === line(root, ['rev-parse', `${base}^{tree}`])) { kept.push(sha); continue; } // already there
+      const [name, email, date, ...body] = git(root, ['log', '-1', '--format=%an%n%ae%n%aI%n%B', sha]).split('\n');
+      base = git(root, ['commit-tree', tree, '-p', base, '-F', '-'], {
+        input: body.join('\n'),
+        env: { GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_AUTHOR_DATE: date },
+      }).trim();
+      built.push(base);
     }
-    // Somebody pushed in between, or the branch is protected: look again once, then say so.
-    if (!run(root, ['fetch', '--quiet', 'origin', def], { timeout: NET_TIMEOUT_MS }).ok) return;
+    if (base === tip && line(root, ['rev-parse', '--verify', '--quiet', ref])) { s.ours.push(...kept); s.queue = []; return; }
+    const r = run(root, ['push', '--quiet', 'origin', `${base}:refs/heads/${KNOWLEDGE_BRANCH}`], { timeout: NET_TIMEOUT_MS });
+    if (r.ok) {
+      run(root, ['update-ref', ref, base]);
+      s.ours.push(...built, ...kept);
+      s.queue = [];
+      return;
+    }
+    // Somebody pushed to the exchange branch in between: look again once, then say so.
   }
-  note(s, `No he podido subir los cambios de conocimiento a ${def} (¿rama protegida?). ` +
+  note(s, `No he podido subir los cambios de conocimiento a ${KNOWLEDGE_BRANCH}. ` +
     'Siguen comiteados aquí; se reintenta en el próximo turno.');
 }
 
 // ------------------------------------------------------------------ local: their changes
 
 /**
- * Apply what others pushed, from the last fetch — no network here. Only knowledge, only files you
- * have not touched since; anything else is said, never done.
+ * Apply what others put on `rsc/knowledge`, from the last fetch — no network here — into whatever
+ * branch you are on. Only knowledge paths are looked at: the exchange branch is born from the default
+ * branch, so it also carries code, and code reaches you the ordinary way. Only files you have not
+ * touched since; a clash is said, never forced. Never a fast-forward: that would move your local
+ * default branch onto a commit the remote default branch does not have.
  */
 export function applyIncoming(root, s) {
   const said = [];
-  const def = defaultBranch(root);
-  if (!def || busy(root)) return said;
-  const tip = line(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${def}`]);
+  if (busy(root)) return said;
+  const branch = line(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (!branch || branch === 'HEAD') return said;
+  const tip = line(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${KNOWLEDGE_BRANCH}`]);
   if (!tip) return said;
-  if (!s.seen) s.seen = line(root, ['merge-base', 'HEAD', tip]) || tip;
+  if (!s.seen || !line(root, ['rev-parse', '--verify', '--quiet', `${s.seen}^{commit}`])) {
+    s.seen = line(root, ['merge-base', 'HEAD', tip]) || tip;
+  }
   if (s.seen === tip) return said;
-  if (!line(root, ['rev-parse', '--verify', '--quiet', `${s.seen}^{commit}`])) s.seen = line(root, ['merge-base', 'HEAD', tip]) || tip;
-
-  const commits = git(root, ['rev-list', `${s.seen}..${tip}`]).split('\n').filter(Boolean);
-  const theirs = commits.filter((c) => !s.ours.includes(c));
+  const paths = [...KNOWLEDGE];
+  const theirs = git(root, ['rev-list', `${s.seen}..${tip}`, '--', ...paths]).split('\n').filter(Boolean)
+    .filter((c) => !s.ours.includes(c));
   if (!theirs.length) { s.seen = tip; return said; }
 
-  const files = zlist(git(root, ['diff', '--name-only', '--no-renames', '-z', s.seen, tip]));
-  const foreign = files.filter((f) => !isKnowledge(f));
-  const know = files.filter(isKnowledge).slice(0, MAX_FILES);
+  const know = zlist(git(root, ['diff', '--name-only', '--no-renames', '-z', s.seen, tip, '--', ...paths]))
+    .filter(isKnowledge).slice(0, MAX_FILES);
   const who = authorsOf(root, theirs);
-  const branch = line(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
-  const onDefault = branch === def;
-
-  if (onDefault && foreign.length && s.notifiedTip !== tip) {
-    s.notifiedTip = tip;
-    said.push(`${who} subió cambios que no son solo conocimiento (${listed(foreign)}). No los traigo solo: revisa y haz \`git pull\`.`);
-  }
-
-  const dirty = new Set(changedKnowledge(root));
-  if (onDefault && !foreign.length && !know.some((f) => dirty.has(f)) && isAncestor(root, 'HEAD', tip)) {
-    if (run(root, ['merge', '--ff-only', '--quiet', tip]).ok) {
-      s.seen = tip;
-      if (know.length) said.push(`📥 Traídos ${theirs.length} cambio(s) de conocimiento de ${who}: ${listed(know)}.`);
-      return said;
-    }
-  }
-  if (branch === 'HEAD') return said;
-
   const take = [];
   const clash = [];
   for (const f of know) {
@@ -348,8 +355,14 @@ export function applyIncoming(root, s) {
     const present = take.filter((f) => blob(root, tip, f));
     if (present.length) git(root, ['--literal-pathspecs', 'checkout', tip, '--', ...present]);
     if (gone.length) git(root, ['--literal-pathspecs', 'rm', '--quiet', '--', ...gone]);
-    git(root, ['--literal-pathspecs', 'commit', '--quiet', '--no-verify', '--only',
-      '-m', `📥 docs(auto): sync desde ${def} ${SKIP_CI}`, '--', ...take]);
+    // On a default branch closed for the agent nothing is committed there: the files are updated
+    // and travel into the next branch the agent opens (regla A).
+    if (!(branch === defaultBranch(root) && trunkClosed(root))) {
+      git(root, ['--literal-pathspecs', 'commit', '--quiet', '--no-verify', '--only',
+        '-m', `📥 docs(auto): sync desde ${KNOWLEDGE_BRANCH} ${SKIP_CI}`, '--', ...take]);
+    } else {
+      git(root, ['--literal-pathspecs', 'reset', '--quiet', '--', ...take]); // updated, not staged
+    }
     said.push(`📥 Traídos ${theirs.length} cambio(s) de conocimiento de ${who}: ${listed(take)}.`);
   }
   if (clash.length) {
@@ -382,8 +395,9 @@ function background(root, op) {
 }
 
 const ANNOUNCE = '🔄 La sincronización del conocimiento está activa: lo que cambies en 01-TOOLS/ y 02-DOCS/ ' +
-  'se sube solo a origin (con [skip ci]) y lo de los demás te llega solo. Para apagarla en este proyecto: ' +
-  '`rsc knowledge-sync off`.';
+  `viaja a tu equipo por la rama ${KNOWLEDGE_BRANCH} (nunca a la principal, con [skip ci]) y lo de los demás ` +
+  'te llega a la rama en la que estés. Llega a la principal dentro de vuestras PRs. Para apagarla en este ' +
+  'proyecto: `rsc knowledge-sync off`.';
 
 /** UserPromptSubmit: apply what was fetched, say what happened, fetch again in the background. */
 export function onRequest(root, { spawnFetch = true } = {}) {
@@ -427,6 +441,7 @@ export function knowledgeStatus(root) {
     reason,
     branch: line(root, ['rev-parse', '--abbrev-ref', 'HEAD']),
     defaultBranch: defaultBranch(root),
+    exchangeBranch: KNOWLEDGE_BRANCH,
     queued: s.queue.length,
     pendingNotices: s.notices.length,
     lastFetch: s.lastFetch ? new Date(s.lastFetch).toISOString() : null,
@@ -451,8 +466,9 @@ export function work(root, op) {
     try {
       if (op === 'ship') ship(root, s);
       else if (op === 'fetch') {
-        const def = defaultBranch(root);
-        if (def) run(root, ['fetch', '--quiet', 'origin', def], { timeout: NET_TIMEOUT_MS });
+        // What comes down comes from the exchange branch; absent upstream is not an error.
+        run(root, ['fetch', '--quiet', 'origin', `+refs/heads/${KNOWLEDGE_BRANCH}:refs/remotes/origin/${KNOWLEDGE_BRANCH}`],
+          { timeout: NET_TIMEOUT_MS });
         if (s.queue.length) ship(root, s);
       }
     } catch (e) {

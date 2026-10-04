@@ -105,7 +105,7 @@ export const RscKnowledgePlugin = async ({ directory, worktree }) => {
 
 export function knowledgeManagedPaths(target, cwd = process.cwd()) {
   if (!CONFIG[target]) return [];
-  return [join(cwd, '.rsc', 'knowledge-sync.mjs'), join(cwd, ...CONFIG[target].split('/'))];
+  return [join(cwd, '.rsc', 'knowledge-sync.mjs'), join(cwd, '.rsc', 'trunk-policy.mjs'), join(cwd, ...CONFIG[target].split('/'))];
 }
 
 /** Wire it. Always, when the assistant supports it: being off is the runtime's `.no-knowledge-sync`. */
@@ -122,6 +122,8 @@ export function wireKnowledge(target, cwd = process.cwd()) {
   const script = join(cwd, '.rsc', 'knowledge-sync.mjs');
   mkdirSync(dirname(script), { recursive: true });
   copyFileSync(join(HERE, 'knowledge-sync.mjs'), script);
+  // Its sibling import: whether the default branch is closed decides if sync may commit there.
+  copyFileSync(join(HERE, 'trunk-policy.mjs'), join(cwd, '.rsc', 'trunk-policy.mjs'));
   mkdirSync(dirname(configPath), { recursive: true });
   if (target === 'opencode') writeFileSync(configPath, PLUGIN);
   else {
@@ -134,6 +136,10 @@ export function wireKnowledge(target, cwd = process.cwd()) {
       if (target === 'cursor') { delete h.type; delete h.timeout; config.hooks[event].push(h); }
       else config.hooks[event].push({ hooks: [h] });
     }
+    // A fixed event order. The memory rewires by stripping and re-appending its own events, which
+    // moves them behind ours; without this, install and re-install write the same hooks in a
+    // different order and the onboarding receipt reads it as drift ("governed content differs").
+    config.hooks = Object.fromEntries(Object.keys(config.hooks).sort().map((k) => [k, config.hooks[k]]));
     writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`);
   }
   const paths = knowledgeManagedPaths(target, cwd);

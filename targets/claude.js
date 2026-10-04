@@ -120,6 +120,9 @@ export function wireHook(paths, sourceMd, policy = {}) {
   copyFileSync(join(HERE, 'worktree-reaper.mjs'), join(paths.projectRoot, '.rsc', 'worktree-reaper.mjs'));
   // session-start imports the shared update check, so it travels as a sibling too.
   copyFileSync(join(HERE, 'auto-update.mjs'), join(paths.projectRoot, '.rsc', 'auto-update.mjs'));
+  // team-safe-default: the 3.0 start-up duties and the trunk policy they read, as siblings.
+  copyFileSync(join(HERE, 'team-safe-start.mjs'), join(paths.projectRoot, '.rsc', 'team-safe-start.mjs'));
+  copyFileSync(join(HERE, 'trunk-policy.mjs'), join(paths.projectRoot, '.rsc', 'trunk-policy.mjs'));
   copyFileSync(join(HERE, 'session-start.mjs'), scriptDest);
   // The one harness file that belongs in the committed tree rather than in `.rsc/`: it is the only
   // thing standing between a clone and seven stack traces, so it has to survive `git clone`.
@@ -181,6 +184,20 @@ export function wireHook(paths, sourceMd, policy = {}) {
   );
   settings.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: sgCmd }] });
 
+  // Branch guard (team-safe-default): the default branch closed for the agent where the project shows
+  // it is complex or in production, and no branch switching under another session working in the same
+  // checkout. trunk-policy.mjs is its sibling import (and knowledge-sync's); session-memory-core.mjs
+  // comes with the memory wiring, and without it the isolation rule simply sees nobody. Fail-open,
+  // opt-outs `.rsc/.no-trunk-guard` and `.rsc/.no-worktree-isolation`.
+  const bgDest = join(paths.projectRoot, '.rsc', 'branch-guard.mjs');
+  copyFileSync(join(HERE, 'branch-guard.mjs'), bgDest);
+  copyFileSync(join(HERE, 'trunk-policy.mjs'), join(paths.projectRoot, '.rsc', 'trunk-policy.mjs'));
+  const bgCmd = viaBootstrap('guard', at('.rsc', 'branch-guard.mjs'), `"${P}"`);
+  settings.hooks.PreToolUse = settings.hooks.PreToolUse.filter(
+    (e) => !hookWiringOf(e).includes('.rsc/branch-guard.'),
+  );
+  settings.hooks.PreToolUse.push({ matcher: 'Bash', hooks: [{ type: 'command', command: bgCmd }] });
+
 
   // Gitmoji guard: a PreToolUse(Bash) hook that DENIES a `git commit` whose message
   // carries no gitmoji (gitmoji.dev) in front of the Conventional Commits header. The
@@ -213,18 +230,18 @@ export function wireHook(paths, sourceMd, policy = {}) {
     (e) => !hookWiringOf(e).includes('.rsc/userprompt-gate.'),
   );
   settings.hooks.UserPromptSubmit.push({ hooks: [{ type: 'command', command: fgCmd }] });
-  written.push(sgDest, gmDest, fgDest, join(paths.projectRoot, '.rsc', 'sello.mjs'));
+  written.push(sgDest, gmDest, fgDest, bgDest, join(paths.projectRoot, '.rsc', 'sello.mjs'), join(paths.projectRoot, '.rsc', 'trunk-policy.mjs'));
   } else {
     for (const event of ['PreToolUse', 'UserPromptSubmit']) {
       if (!settings.hooks[event]) continue;
       settings.hooks[event] = settings.hooks[event].filter((entry) => {
         const body = hookWiringOf(entry);
-        return !body.includes('.rsc/ship-guard.') &&
+        return !body.includes('.rsc/ship-guard.') && !body.includes('.rsc/branch-guard.') &&
           !body.includes('.rsc/gitmoji-guard.') && !body.includes('.rsc/userprompt-gate.');
       });
       if (!settings.hooks[event].length) delete settings.hooks[event];
     }
-    for (const name of ['ship-guard.mjs', 'gitmoji-guard.mjs', 'userprompt-gate.mjs', 'sello.mjs']) {
+    for (const name of ['ship-guard.mjs', 'branch-guard.mjs', 'trunk-policy.mjs', 'gitmoji-guard.mjs', 'userprompt-gate.mjs', 'sello.mjs']) {
       rmSync(join(paths.projectRoot, '.rsc', name), { force: true });
     }
     written.push(operationsSuggest);

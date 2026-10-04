@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -10,10 +10,11 @@ import {
 
 process.env.RSC_KNOWLEDGE_SYNC_FOREGROUND = '1';
 
-// Knowledge sync is on by default, so these tests are mostly about what it must NOT do: push code,
-// push the profile, push somebody's unpushed work, overwrite a file you are editing, pull in code
-// that would run on your machine. Everything runs against a real `--bare` remote and two clones —
-// "Eric" and "Ana" — because the whole feature is what git does between two machines.
+// Knowledge sync is on by default, so these tests are mostly about what it must NOT do: touch the
+// default branch, push code, push the profile, push somebody's unpushed work, overwrite a file you are
+// editing, pull in code. Everything runs against a real `--bare` remote and two clones — "Eric" and
+// "Ana" — and the remote's default branch is PROTECTED the way GitHub protects it: a pre-receive hook
+// rejects every push to `main`. Knowledge travels through `rsc/knowledge` (team-safe-default D).
 
 const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
@@ -23,7 +24,7 @@ function write(repo, rel, body) {
 }
 const read = (repo, rel) => readFileSync(join(repo, rel), 'utf8');
 
-function team() {
+function team({ protectedMain = true } = {}) {
   const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'rsc-ks-')));
   const remote = join(tmp, 'remote.git');
   git(tmp, 'init', '-q', '--bare', '-b', 'main', remote);
@@ -40,18 +41,28 @@ function team() {
   git(seed, 'commit', '-q', '-m', 'seed');
   git(seed, 'push', '-q', 'origin', 'main');
   git(remote, 'symbolic-ref', 'HEAD', 'refs/heads/main');
+  if (protectedMain) {
+    const hook = join(remote, 'hooks', 'pre-receive');
+    writeFileSync(hook, '#!/bin/sh\nwhile read old new ref; do [ "$ref" = "refs/heads/main" ] && { echo "main is protected" >&2; exit 1; }; done\nexit 0\n');
+    chmodSync(hook, 0o755);
+  }
   const clone = (name, who) => {
     const dir = join(tmp, name);
     git(tmp, 'clone', '-q', remote, dir);
     ident(dir, who);
     return dir;
   };
-  return { tmp, remote, eric: clone('eric', 'Eric'), ana: clone('ana', 'Ana') };
+  return { tmp, remote, seedTip: git(remote, 'rev-parse', 'main'), eric: clone('eric', 'Eric'), ana: clone('ana', 'Ana'), clone };
 }
 
 function ident(repo, who) {
   git(repo, 'config', 'user.name', who);
   git(repo, 'config', 'user.email', `${who.toLowerCase()}@x`);
+}
+
+/** Make the project look complex (CI): the default branch closes for the agent (trunk-policy). */
+function makeComplex(repo) {
+  write(repo, '.github/workflows/ci.yml', 'on: push\n');
 }
 
 /** The end of a turn, with the background push run in the foreground. */
@@ -66,34 +77,37 @@ function message(repo) {
   return onRequest(repo, { spawnFetch: false });
 }
 
-const remoteFiles = (remote) => git(remote, 'ls-tree', '-r', '--name-only', 'main').split('\n');
-const remoteShow = (remote, rel) => git(remote, 'show', `main:${rel}`);
+const K = 'rsc/knowledge';
+const kFiles = (remote) => git(remote, 'ls-tree', '-r', '--name-only', K).split('\n');
+const kShow = (remote, rel) => git(remote, 'show', `${K}:${rel}`);
 const state = (repo) => JSON.parse(read(repo, '.rsc/knowledge-sync.json'));
 const quiet = (repo) => { onRequest(repo, { spawnFetch: false }); }; // consume the one-time announcement
 
 // ------------------------------------------------------------------ up
 
-test('ks01 · a knowledge change made on the default branch reaches the remote with the same SHA', () => {
-  const { remote, eric } = team();
+test('ks01 · a knowledge change goes to rsc/knowledge, and the protected main is never touched', () => {
+  const { remote, eric, seedTip } = team();
   write(eric, '02-DOCS/wiki/nueva.md', 'hola\n');
   turn(eric);
-  assert.equal(git(remote, 'rev-parse', 'main'), git(eric, 'rev-parse', 'HEAD'));
-  const msg = git(remote, 'log', '-1', '--format=%s', 'main');
+  assert.equal(kShow(remote, '02-DOCS/wiki/nueva.md'), 'hola');
+  assert.equal(git(remote, 'rev-parse', 'main'), seedTip, 'the default branch moved');
+  const msg = git(remote, 'log', '-1', '--format=%s', K);
   assert.match(msg, /^📝 docs\(auto\): nueva/);
   assert.ok(msg.endsWith(SKIP_CI), 'every automatic commit must keep CI and deploys out of it');
-  assert.equal(git(remote, 'log', '-1', '--format=%an', 'main'), 'Eric', 'the author is the person, not a bot');
+  assert.equal(git(remote, 'log', '-1', '--format=%an', K), 'Eric', 'the author is the person, not a bot');
+  assert.deepEqual(state(eric).notices, [], 'a protected main must not produce a push error');
 });
 
-test('ks02 · only knowledge is committed: code, the profile and what you staged by hand stay out', () => {
+test('ks02 · only knowledge goes up: code, the profile and what you staged by hand stay out', () => {
   const { remote, eric } = team();
   write(eric, 'src/app.js', 'staged by hand\n');
   git(eric, 'add', 'src/app.js');
   write(eric, '02-DOCS/wiki/harness/user-profile.md', 'technical_level: L4\n');
   write(eric, '01-TOOLS/X/run.py', 'print()\n');
   turn(eric);
-  assert.ok(remoteFiles(remote).includes('01-TOOLS/X/run.py'));
-  assert.equal(remoteShow(remote, 'src/app.js'), 'code');
-  assert.equal(remoteShow(remote, '02-DOCS/wiki/harness/user-profile.md'), 'technical_level: L2');
+  assert.ok(kFiles(remote).includes('01-TOOLS/X/run.py'));
+  assert.equal(kShow(remote, 'src/app.js'), 'code');
+  assert.equal(kShow(remote, '02-DOCS/wiki/harness/user-profile.md'), 'technical_level: L2');
   const status = git(eric, 'status', '--porcelain');
   assert.match(status, /^M {2}src\/app\.js$/m, 'what you staged is still staged, and still yours');
   assert.match(status, /user-profile\.md/);
@@ -105,30 +119,33 @@ test('ks03 · your unpushed code never goes up with it', () => {
   git(eric, 'commit', '-q', '-am', 'wip: not ready');
   write(eric, '02-DOCS/wiki/nueva.md', 'hola\n');
   turn(eric);
-  assert.ok(remoteFiles(remote).includes('02-DOCS/wiki/nueva.md'));
-  assert.equal(remoteShow(remote, 'src/app.js'), 'code', 'the wip commit leaked to the remote');
-  assert.equal(git(remote, 'log', '--format=%s', 'main').includes('wip: not ready'), false);
+  assert.ok(kFiles(remote).includes('02-DOCS/wiki/nueva.md'));
+  assert.equal(kShow(remote, 'src/app.js'), 'code', 'the wip commit leaked to the remote');
+  assert.equal(git(remote, 'log', '--format=%s', K).includes('wip: not ready'), false);
 });
 
-test('ks04 · from a feature branch, the change reaches main and the branch keeps its own commit', () => {
-  const { remote, eric } = team();
+test('ks04 · from a feature branch: up to rsc/knowledge without the branch, and the branch keeps it', () => {
+  const { remote, eric, seedTip } = team();
   git(eric, 'switch', '-q', '-c', 'feat/x');
   write(eric, 'src/app.js', 'feature code\n');
   git(eric, 'commit', '-q', '-am', 'feat: x');
   write(eric, '02-DOCS/wiki/nueva.md', 'hola\n');
   turn(eric);
-  assert.equal(remoteShow(remote, '02-DOCS/wiki/nueva.md'), 'hola');
-  assert.equal(remoteShow(remote, 'src/app.js'), 'code', 'feature code reached main');
+  assert.equal(kShow(remote, '02-DOCS/wiki/nueva.md'), 'hola');
+  assert.equal(kShow(remote, 'src/app.js'), 'code', 'feature code reached the exchange branch');
+  assert.equal(git(remote, 'rev-parse', 'main'), seedTip);
   assert.equal(git(eric, 'rev-parse', '--abbrev-ref', 'HEAD'), 'feat/x');
   assert.match(git(eric, 'log', '-1', '--format=%s'), /^📝 docs\(auto\)/);
-  assert.equal(git(eric, 'status', '--porcelain'), '', 'the branch is left clean, so ship-guard has nothing to object to');
+  assert.equal(git(eric, 'status', '--porcelain'), '', 'the branch is left clean');
 });
 
 test('ks05 · a deletion goes up too', () => {
   const { remote, eric } = team();
-  unlinkSync(join(eric, '01-TOOLS/README.md'));
+  write(eric, '02-DOCS/wiki/nueva.md', 'hola\n');
   turn(eric);
-  assert.equal(remoteFiles(remote).includes('01-TOOLS/README.md'), false);
+  unlinkSync(join(eric, '02-DOCS/wiki/nueva.md'));
+  turn(eric);
+  assert.equal(kFiles(remote).includes('02-DOCS/wiki/nueva.md'), false);
 });
 
 test('ks06 · somebody else pushed first: replayed on top, both survive', () => {
@@ -137,7 +154,7 @@ test('ks06 · somebody else pushed first: replayed on top, both survive', () => 
   turn(ana);
   write(eric, '02-DOCS/wiki/de-eric.md', 'eric\n');
   turn(eric);
-  const files = remoteFiles(remote);
+  const files = kFiles(remote);
   assert.ok(files.includes('02-DOCS/wiki/de-ana.md') && files.includes('02-DOCS/wiki/de-eric.md'));
 });
 
@@ -147,7 +164,7 @@ test('ks07 · the same line changed on both sides: nothing is forced, and it is 
   turn(ana);
   write(eric, '02-DOCS/wiki/index.md', 'uno\nERIC\ntres\n');
   turn(eric);
-  assert.equal(remoteShow(remote, '02-DOCS/wiki/index.md'), 'uno\nANA\ntres');
+  assert.equal(kShow(remote, '02-DOCS/wiki/index.md'), 'uno\nANA\ntres');
   assert.equal(read(eric, '02-DOCS/wiki/index.md'), 'uno\nERIC\ntres\n');
   assert.ok(state(eric).notices.some((n) => n.includes('choca')), JSON.stringify(state(eric).notices));
   assert.equal(existsSync(join(eric, '.rsc', 'knowledge-sync.index')), false, 'the throwaway index was left behind');
@@ -163,24 +180,39 @@ test('ks08 · offline: committed locally, nothing said, pushed on a later turn',
   assert.equal(state(eric).queue.length, 1);
   git(eric, 'remote', 'set-url', 'origin', real);
   work(eric, 'fetch');
-  assert.ok(remoteFiles(remote).includes('02-DOCS/wiki/nueva.md'));
+  assert.ok(kFiles(remote).includes('02-DOCS/wiki/nueva.md'));
   assert.equal(state(eric).queue.length, 0);
+});
+
+test('ks09 · main closed for the agent (complex project, on main): nothing committed there, it still goes up', () => {
+  const { remote, eric } = team();
+  makeComplex(eric);
+  git(eric, 'add', '-A'); git(eric, 'commit', '-q', '-m', 'ci'); // a person's own commit, before
+  const head = git(eric, 'rev-parse', 'HEAD');
+  write(eric, '02-DOCS/wiki/nueva.md', 'hola\n');
+  turn(eric);
+  assert.equal(git(eric, 'rev-parse', 'HEAD'), head, 'sync committed on a closed default branch');
+  assert.match(git(eric, 'status', '--porcelain'), /nueva\.md/, 'the change stays in the files');
+  assert.equal(kShow(remote, '02-DOCS/wiki/nueva.md'), 'hola');
+  turn(eric); // still modified: going up again is a no-op, not an error
+  assert.deepEqual(state(eric).notices, []);
 });
 
 // ------------------------------------------------------------------ down
 
-test('ks10 · somebody else\'s knowledge arrives, by fast-forward on the default branch', () => {
-  const { eric, ana } = team();
+test('ks10 · somebody else\'s knowledge arrives on the default branch of a simple project, as a sync commit', () => {
+  const { remote, eric, ana } = team();
   quiet(eric);
   write(ana, '02-DOCS/wiki/de-ana.md', 'ana\n');
   turn(ana);
   const said = message(eric);
   assert.equal(read(eric, '02-DOCS/wiki/de-ana.md'), 'ana\n');
   assert.match(said, /📥 .*Ana.*de-ana\.md/);
-  assert.equal(git(eric, 'rev-parse', 'HEAD'), git(ana, 'rev-parse', 'HEAD'), 'a fast-forward, not a new commit');
+  assert.match(git(eric, 'log', '-1', '--format=%s'), /^📥 docs\(auto\): sync desde rsc\/knowledge/);
+  assert.notEqual(git(eric, 'rev-parse', 'HEAD'), git(remote, 'rev-parse', K), 'never a fast-forward onto the exchange branch');
 });
 
-test('ks11 · on a feature branch it arrives too, as one sync commit, and your work is untouched', () => {
+test('ks11 · on a feature branch it arrives too, and your work is untouched', () => {
   const { eric, ana } = team();
   quiet(eric);
   git(eric, 'switch', '-q', '-c', 'feat/x');
@@ -190,30 +222,32 @@ test('ks11 · on a feature branch it arrives too, as one sync commit, and your w
   message(eric);
   assert.equal(read(eric, '02-DOCS/wiki/de-ana.md'), 'ana\n');
   assert.equal(read(eric, 'src/app.js'), 'half done\n');
-  assert.match(git(eric, 'log', '-1', '--format=%s'), /^📥 docs\(auto\): sync desde main/);
+  assert.match(git(eric, 'log', '-1', '--format=%s'), /^📥 docs\(auto\)/);
 });
 
-test('ks12 · what is not knowledge is said, not pulled — and said once', () => {
+test('ks12 · code on the exchange branch never comes down through it', () => {
   const { eric, ana } = team();
   quiet(eric);
+  git(ana, 'switch', '-q', '-c', K);
   write(ana, '.claude/settings.json', '{"hooks":{}}\n');
+  write(ana, 'src/app.js', 'from the exchange branch\n');
   write(ana, '02-DOCS/wiki/de-ana.md', 'ana\n');
   git(ana, 'add', '-A');
-  git(ana, 'commit', '-q', '-m', 'hooks + doc');
-  git(ana, 'push', '-q', 'origin', 'main');
-  const said = message(eric);
+  git(ana, 'commit', '-q', '-m', 'misuse: code on the exchange branch');
+  git(ana, 'push', '-q', 'origin', K);
+  message(eric);
   assert.equal(existsSync(join(eric, '.claude/settings.json')), false, 'code that would run here was pulled in');
-  assert.match(said, /No los traigo solo/);
+  assert.equal(read(eric, 'src/app.js'), 'code\n');
   assert.equal(read(eric, '02-DOCS/wiki/de-ana.md'), 'ana\n', 'the knowledge part still arrives');
-  assert.doesNotMatch(message(eric), /No los traigo solo/, 'nagged twice about the same push');
 });
 
 test('ks13 · the profile of somebody else never lands on your machine', () => {
   const { eric, ana } = team();
   quiet(eric);
+  git(ana, 'switch', '-q', '-c', K);
   write(ana, '02-DOCS/wiki/harness/user-profile.md', 'technical_level: L5\n');
   git(ana, 'commit', '-q', '-am', 'my dials');
-  git(ana, 'push', '-q', 'origin', 'main');
+  git(ana, 'push', '-q', 'origin', K);
   message(eric);
   assert.equal(read(eric, '02-DOCS/wiki/harness/user-profile.md'), 'technical_level: L2\n');
 });
@@ -238,6 +272,45 @@ test('ks15 · your own pushes do not come back as somebody else\'s', () => {
   assert.equal(message(eric), '', 'announced its own push as incoming');
 });
 
+test('ks16 · on a closed default branch, what arrives updates the files and creates no commit', () => {
+  const { eric, ana } = team();
+  makeComplex(eric);
+  git(eric, 'add', '-A'); git(eric, 'commit', '-q', '-m', 'ci');
+  quiet(eric);
+  const head = git(eric, 'rev-parse', 'HEAD');
+  write(ana, '02-DOCS/wiki/de-ana.md', 'ana\n');
+  turn(ana);
+  message(eric);
+  assert.equal(read(eric, '02-DOCS/wiki/de-ana.md'), 'ana\n');
+  assert.equal(git(eric, 'rev-parse', 'HEAD'), head, 'a commit landed on the closed default branch');
+});
+
+test('ks17 · a newcomer clones the default branch and has the team\'s knowledge after the first message', () => {
+  const { eric, clone } = team();
+  write(eric, '02-DOCS/wiki/nueva.md', 'lo que sabe el equipo\n');
+  turn(eric);
+  const nuevo = clone('nuevo', 'Nuevo');
+  assert.equal(existsSync(join(nuevo, '02-DOCS/wiki/nueva.md')), false, 'fixture: main does not have it yet');
+  message(nuevo);
+  assert.equal(read(nuevo, '02-DOCS/wiki/nueva.md'), 'lo que sabe el equipo\n');
+});
+
+test('ks18 · two working branches carrying the same knowledge merge into main without a conflict', () => {
+  const { eric, ana, clone } = team();
+  git(eric, 'switch', '-q', '-c', 'feat/a');
+  git(ana, 'switch', '-q', '-c', 'feat/b');
+  quiet(ana);
+  write(eric, '02-DOCS/wiki/nueva.md', 'compartido\n');
+  turn(eric);
+  message(ana);
+  for (const [repo, b] of [[eric, 'feat/a'], [ana, 'feat/b']]) git(repo, 'push', '-q', 'origin', b);
+  const lead = clone('lead', 'Lead');
+  git(lead, 'fetch', '-q', 'origin', 'feat/a', 'feat/b');
+  git(lead, 'merge', '-q', '--no-edit', 'origin/feat/a');
+  git(lead, 'merge', '-q', '--no-edit', 'origin/feat/b'); // throws on conflict
+  assert.equal(read(lead, '02-DOCS/wiki/nueva.md'), 'compartido\n');
+});
+
 // ------------------------------------------------------------------ on by default, off on request
 
 test('ks20 · on by default, and the first message says so — once', () => {
@@ -255,7 +328,7 @@ test('ks21 · .no-knowledge-sync turns it off completely', () => {
   write(eric, '02-DOCS/wiki/nueva.md', 'hola\n');
   turn(eric);
   assert.equal(onRequest(eric, { spawnFetch: false }), '');
-  assert.equal(remoteFiles(remote).includes('02-DOCS/wiki/nueva.md'), false);
+  assert.throws(() => kFiles(remote), 'the exchange branch was created while opted out');
   assert.equal(git(eric, 'log', '-1', '--format=%s'), 'seed');
   assert.equal(knowledgeStatus(eric).reason, 'opted-out');
 });
@@ -300,7 +373,7 @@ test('ks30 · the hook: a message says it to the person, the end of a turn commi
   hook('claude', 'turn', { session_id: 's1', cwd: eric });
   assert.match(git(eric, 'log', '-1', '--format=%s'), /^📝 docs\(auto\)/, 'the Stop event did not commit');
   work(eric, 'ship');
-  assert.ok(remoteFiles(remote).includes('02-DOCS/wiki/nueva.md'));
+  assert.ok(kFiles(remote).includes('02-DOCS/wiki/nueva.md'));
   assert.deepEqual(Object.keys(hook('cursor', 'request', { cwd: eric })), [], 'nothing new: nothing said');
 });
 

@@ -93,6 +93,12 @@ This mirrors the harness "siempre 3 opciones" pattern. Gather the one fact that 
 | **2. Pull request** | Push the branch, open a PR with a spec-linked body, let CI / a human gate the merge | `main` is protected; a team or CI must sign off; you want the change reviewable in the forge even if you self-merge |
 | **3. Park or discard** | Keep the branch un-merged (park) or delete it (discard) | The approach was superseded, the spike answered its question, or the work is paused — it should not land |
 
+**When the default branch is closed for the agent** (team-safe-default: the project is complex or in
+production — `npx @ericrisco/rsc main status` says `closed: true`), **option 1 is not offered**: a
+local merge is a commit on the default branch. Present option 2 (the recommendation) and option 3,
+and say in one line why option 1 is absent and that «desbloquea main» (`npx @ericrisco/rsc main
+unlock`) would bring it back. The branch guard denies the local merge anyway.
+
 Recommend based on repo signals: protected `main` or an existing PR culture (look for `.github/`, prior PRs via `gh pr list`) → recommend **option 2**. A solo project with no protection and a passed review → **option 1** is honest and faster. Never default to a PR ceremony the repo doesn't use, and never force-merge a repo that gates `main`.
 
 ### Delivery strategy from SDD config

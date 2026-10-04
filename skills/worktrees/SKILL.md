@@ -44,6 +44,7 @@ Both isolate history. A worktree also isolates the *filesystem*. Pick by what's 
 | You'll run two streams of work at once (see the parallel pattern) | **worktree** | Each stream gets its own directory; no stash-juggling, no checkout thrash. |
 | The current tree is dirty and the user wants both the WIP and the new work | **worktree** | Stash-and-switch risks losing the WIP; a worktree sidesteps the stash entirely. |
 | You're an agent that may keep the main session running elsewhere | **worktree** | Filesystem isolation is the whole point — the parent session keeps its files. |
+| **Another session is working in this same folder** (rsc says so on each message) | **worktree — mandatory** | Switching branches would change its files under it; rsc's branch guard denies the switch. Tell the person that `.worktrees/<branch>/` is where the project now runs. Off for the project: `npx @ericrisco/rsc isolation off`. |
 
 When in doubt, prefer a **worktree**: it is the strictly stronger isolation and the cost is one
 extra directory. The rest of this skill assumes a worktree; the branch path is the degenerate case

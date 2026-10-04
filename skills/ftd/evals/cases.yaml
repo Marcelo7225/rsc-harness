@@ -34,7 +34,7 @@ should_not_trigger:
 
   - prompt: "No tengo claro si los permisos van por rol o por recurso, y afecta al esquema, a la API y a la UI."
     route_to: "specify"
-    why: "A substantial unresolved ambiguity that durable spec/plan/tasks would settle. The harness proposes the chain here; only an explicit request or an accepted proposal enters it."
+    why: "A substantial unresolved ambiguity that durable spec/plan/tasks would settle. Several interlocking decisions: the agent enters the chain itself and says why (team-safe-default)."
 
   - prompt: "Quiero especificar bien el sistema de permisos antes de tocar nada."
     route_to: "specify"
