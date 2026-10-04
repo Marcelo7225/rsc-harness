@@ -459,3 +459,60 @@ test('ks43 · the background worker runs on node even when the host is not node 
   assert.equal(workerRuntime('/usr/local/bin/node', { node: '22.0.0' }), '/usr/local/bin/node');
   assert.equal(workerRuntime('C:\\Program Files\\nodejs\\node.exe', { node: '22.0.0' }), 'C:\\Program Files\\nodejs\\node.exe');
 });
+
+// ------------------------------------------------------------------ review findings (2026-10-04)
+
+test('ks44 · closed main: a second edit of the same file, and a new file later, both go up (review H1)', () => {
+  const { remote, eric } = team();
+  makeComplex(eric); git(eric, 'add', '-A'); git(eric, 'commit', '-q', '-m', 'ci');
+  quiet(eric);
+  write(eric, '02-DOCS/wiki/index.md', 'uno\nV1\ntres\n'); turn(eric);
+  assert.equal(kShow(remote, '02-DOCS/wiki/index.md'), 'uno\nV1\ntres');
+  write(eric, '02-DOCS/wiki/index.md', 'uno\nV2\ntres\n'); turn(eric);
+  assert.equal(kShow(remote, '02-DOCS/wiki/index.md'), 'uno\nV2\ntres');
+  write(eric, '02-DOCS/wiki/b.md', 'b\n'); turn(eric);
+  assert.equal(kShow(remote, '02-DOCS/wiki/b.md'), 'b');
+  assert.deepEqual(state(eric).notices.filter((n) => /choca/.test(n)), []);
+  assert.equal(git(eric, 'log', '-1', '--format=%s'), 'ci', 'still nothing committed on the closed main');
+});
+
+test('ks45 · closed main: a teammate changing the same file twice arrives twice, no false clash (review H2)', () => {
+  const { eric, ana } = team();
+  makeComplex(eric); git(eric, 'add', '-A'); git(eric, 'commit', '-q', '-m', 'ci');
+  quiet(eric); quiet(ana);
+  git(ana, 'switch', '-q', '-c', 'feat/a');
+  write(ana, '02-DOCS/wiki/index.md', 'uno\nANA1\ntres\n'); turn(ana);
+  assert.match(String(message(eric)), /📥/);
+  assert.equal(read(eric, '02-DOCS/wiki/index.md'), 'uno\nANA1\ntres\n');
+  write(ana, '02-DOCS/wiki/index.md', 'uno\nANA2\ntres\n'); turn(ana);
+  assert.doesNotMatch(String(message(eric)), /también has tocado/);
+  assert.equal(read(eric, '02-DOCS/wiki/index.md'), 'uno\nANA2\ntres\n');
+});
+
+test('ks46 · closed main the remote has not seen yet: still nothing committed there (review H4)', () => {
+  const tmp = realpathSync(mkdtempSync(join(tmpdir(), 'rsc-ks-')));
+  const remote = join(tmp, 'remote.git'); git(tmp, 'init', '-q', '--bare', '-b', 'main', remote);
+  const repo = join(tmp, 'repo'); git(tmp, 'init', '-q', '-b', 'main', repo); ident(repo, 'Eric');
+  write(repo, '.gitignore', '.rsc/\n'); write(repo, '.rsc.json', '{}'); write(repo, 'Dockerfile', 'FROM x\n');
+  write(repo, '02-DOCS/wiki/index.md', 'a\n');
+  git(repo, 'add', '-A'); git(repo, 'commit', '-q', '-m', 'init');
+  git(repo, 'remote', 'add', 'origin', remote);
+  const head = git(repo, 'rev-parse', 'HEAD');
+  write(repo, '02-DOCS/wiki/index.md', 'b\n');
+  onTurn(repo, { spawnShip: false });
+  assert.equal(git(repo, 'rev-parse', 'HEAD'), head);
+});
+
+test('ks47 · a merge in progress inside .worktrees/ is seen, and its conflict is left alone (review H5)', () => {
+  const { eric } = team();
+  const wt = join(eric, '.worktrees', 'x');
+  git(eric, 'worktree', 'add', '-q', wt, '-b', 'feat/x');
+  git(wt, 'switch', '-q', '-c', 'other');
+  write(wt, '02-DOCS/wiki/index.md', 'uno\nOTHER\ntres\n'); git(wt, 'commit', '-qam', 'o');
+  git(wt, 'switch', '-q', 'feat/x');
+  write(wt, '02-DOCS/wiki/index.md', 'uno\nMINE\ntres\n'); git(wt, 'commit', '-qam', 'm');
+  try { git(wt, 'merge', 'other'); } catch { /* the conflict is the point */ }
+  assert.equal(git(wt, 'status', '--porcelain', '--', '02-DOCS'), 'UU 02-DOCS/wiki/index.md');
+  onTurn(wt, { spawnShip: false });
+  assert.equal(git(wt, 'status', '--porcelain', '--', '02-DOCS'), 'UU 02-DOCS/wiki/index.md');
+});

@@ -73,6 +73,31 @@ test('tsd14 · a search for the words "git commit" on a closed default branch is
   assert.equal(await evaluate({ root: r, command: 'grep -rn "git commit" docs/', cwd: r }), null);
 });
 
+test('tsd16 · a chain is judged the way the shell runs it (review M2/M3)', async () => {
+  const r = repo(); write(r, 'Dockerfile');
+  // The way out it recommends, chained, is allowed.
+  assert.equal(await evaluate({ root: r, command: 'git switch -c feat/x && git add -A && git commit -m x', cwd: r }), null);
+  assert.equal(await evaluate({ root: r, command: 'git commit -m "a; b && c" ; true', cwd: r }) !== null, true, 'quotes with separators do not split');
+  // On a branch, moving to the trunk inside the chain and landing there is denied.
+  git(r, 'switch', '-q', '-c', 'feat/y');
+  assert.match(await evaluate({ root: r, command: 'git switch main && git merge feat/y', cwd: r }), /closed for the agent/);
+  assert.match(await evaluate({ root: r, command: 'git checkout main; git commit -am x', cwd: r }), /closed for the agent/);
+  git(r, 'switch', '-q', 'main');
+  assert.match(await evaluate({ root: r, command: 'git --work-tree . commit -m x', cwd: r }), /closed for the agent/);
+  // A worktree opened and entered in the same chain is its own branch.
+  git(r, 'worktree', 'add', '-q', '.worktrees/z', '-b', 'feat/z');
+  assert.equal(await evaluate({ root: r, command: 'git status && cd .worktrees/z && git commit -m x', cwd: r }), null);
+});
+
+test('tsd17 · heredoc bodies and path checkouts are not what they look like (review L1/L2)', async () => {
+  const r = repo(); write(r, 'Dockerfile');
+  assert.equal(await evaluate({ root: r, command: 'cat > notes.md <<EOF\nrun git commit later\nEOF', cwd: r }), null);
+  session(r, 'other', 'codex');
+  assert.equal(await evaluate({ root: r, command: 'git checkout .', cwd: r, sessionId: 'me' }), null);
+  assert.equal(await evaluate({ root: r, command: 'git checkout f0.txt', cwd: r, sessionId: 'me' }), null);
+  assert.match(await evaluate({ root: r, command: 'git checkout -b feat/q', cwd: r, sessionId: 'me' }), /Another session/);
+});
+
 test('tsd15 · the way out of a closed default branch: alone → a branch in this folder; with company → .worktrees/', async () => {
   // E2E 2026-10-04: told only "a branch", an agent alone reached for its assistant's own worktree tool.
   const r = repo(); write(r, 'Dockerfile');
@@ -239,6 +264,31 @@ test('tsd34 · a worktree made by hand, or one a session is working in, is not m
   assert.ok(existsSync(mine), 'a hand-made worktree was moved');
   assert.ok(existsSync(busy), 'a worktree with an active session was moved');
   assert.match(said, /una sesión trabaja en él/);
+});
+
+test('tsd36 · a session journaled in the old worktree\'s own store also keeps it in place (review H3)', async () => {
+  const { relocateOldWorktrees } = await import('../targets/team-safe-start.mjs');
+  const r = repo();
+  const sibling = `${r}-feat-s`;
+  git(r, 'worktree', 'add', '-q', sibling, '-b', 'feat/s');
+  write(sibling, 'w.txt', 'editing\n');
+  // The sibling carries its own .rsc.json, so its session writes to the sibling's store, not r's.
+  capture({ cwd: sibling, worktreeCwd: sibling, sessionId: 'S1', target: 'claude', event: 'edit', editDelta: 1 });
+  assert.equal(otherActiveSessions({ cwd: r, worktreeCwd: sibling }).length, 0, 'precondition: invisible from r');
+  const said = await relocateOldWorktrees(r);
+  assert.ok(existsSync(sibling), 'a worktree in use was moved');
+  assert.match(said, /una sesión trabaja en él/);
+});
+
+test('tsd37 · the rescue runs once: a commit the person makes on main later is theirs (review M1, P3)', async () => {
+  const { rescueTrunkCommits } = await import('../targets/team-safe-start.mjs');
+  const r = repo(); write(r, 'Dockerfile'); git(r, 'add', '-A'); git(r, 'commit', '-q', '-m', 'docker');
+  withRemote(r);
+  assert.equal(await rescueTrunkCommits(r), '', 'first 3.0 session: nothing stranded');
+  write(r, 'hotfix.txt', 'person\n'); git(r, 'add', '-A'); git(r, 'commit', '-q', '-m', 'person hotfix');
+  assert.equal(await rescueTrunkCommits(r), '');
+  assert.equal(git(r, 'log', '-1', '--format=%s'), 'person hotfix');
+  assert.equal(git(r, 'branch', '--list', 'rescue/*'), '');
 });
 
 test('tsd35 · the 3.0 announcement is said once per project and machine, with every way to turn it off', async () => {

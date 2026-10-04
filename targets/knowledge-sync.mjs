@@ -36,9 +36,9 @@ import {
   closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, statSync,
   unlinkSync, writeFileSync,
 } from 'node:fs';
-import { basename, dirname, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { trunkClosed } from './trunk-policy.mjs';
+import { defaultBranchName, trunkClosed } from './trunk-policy.mjs';
 
 /** What syncs on its own. Everything else is ordinary git, decided by a person. */
 export const KNOWLEDGE = Object.freeze(['01-TOOLS/', '02-DOCS/wiki/', '02-DOCS/attachments/']);
@@ -84,17 +84,14 @@ function git(root, args, opts) {
 const line = (root, args, opts) => { const r = run(root, args, opts); return r.ok ? r.out.trim() : null; };
 const zlist = (out) => out.split('\0').filter(Boolean);
 
-function defaultBranch(root) {
-  const head = line(root, ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD']);
-  if (head) return head.replace(/^refs\/remotes\/origin\//, '');
-  for (const b of ['main', 'master']) if (line(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${b}`])) return b;
-  return null;
-}
+// One answer to "which is the default branch", shared with the guard: a copy without the local
+// main/master fallback once let this module commit on a closed main the remote had not seen yet.
+const defaultBranch = (root) => defaultBranchName(root);
 
 function busy(root) {
   for (const p of ['rebase-merge', 'rebase-apply', 'MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD']) {
     const path = line(root, ['rev-parse', '--git-path', p]);
-    if (path && existsSync(join(root, path))) return true;
+    if (path && existsSync(isAbsolute(path) ? path : join(root, path))) return true; // absolute in a linked worktree
   }
   return false;
 }
@@ -107,7 +104,7 @@ const worktreeBlob = (root, path) => (existsSync(join(root, path)) ? line(root, 
 function readState(root) {
   let s = {};
   try { s = JSON.parse(readFileSync(join(root, '.rsc', STATE), 'utf8')); } catch { /* first run */ }
-  return { announced: false, seen: null, queue: [], ours: [], notices: [], lastFetch: 0, ...s };
+  return { announced: false, seen: null, queue: [], ours: [], notices: [], lastFetch: 0, snap: null, ...s };
 }
 
 function writeState(root, s) {
@@ -212,8 +209,14 @@ export function commitLocal(root, s) {
       if (!run(root, ['read-tree', 'HEAD'], { env }).ok) return null;
       git(root, ['--literal-pathspecs', 'add', '-A', '--', ...files], { env });
       const tree = line(root, ['write-tree'], { env });
-      if (!tree || tree === line(root, ['rev-parse', 'HEAD^{tree}'])) return null;
-      const sha = git(root, ['commit-tree', tree, '-p', 'HEAD', '-F', '-'], { input: message(files) }).trim();
+      // Chained to the previous snapshot while HEAD has not moved, so each one carries only what
+      // changed since: the files stay modified on a closed trunk, and a snapshot against HEAD would
+      // re-offer the first version every turn and read the second as a clash (review H1).
+      const head = line(root, ['rev-parse', 'HEAD']);
+      const prev = s.snap && s.snap.head === head && line(root, ['rev-parse', '--verify', '--quiet', `${s.snap.commit}^{commit}`]) ? s.snap.commit : head;
+      if (!tree || tree === line(root, ['rev-parse', `${prev}^{tree}`])) return null;
+      const sha = git(root, ['commit-tree', tree, '-p', prev, '-F', '-'], { input: message(files) }).trim();
+      s.snap = { head, commit: sha };
       s.queue.push(sha);
       return sha;
     } finally {
@@ -244,11 +247,14 @@ function replay(root, base, sha) {
   const env = { GIT_INDEX_FILE: join(root, '.rsc', 'knowledge-sync.index') };
   try {
     if (!run(root, ['read-tree', base], { env }).ok) return null;
-    if (!run(root, ['apply', '--cached', '-'], { env, input: patch.out, timeout: NET_TIMEOUT_MS }).ok) {
-      // Not a conflict if the content is already there — the same change going up a second time (a
-      // closed default branch keeps the files modified, so every turn offers them again).
-      const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', `${sha}^`, sha]));
-      return files.every((f) => blob(root, sha, f) === blob(root, base, f)) ? line(root, ['rev-parse', `${base}^{tree}`]) : null;
+    // File by file: one that is already there as it should be is skipped, not read as a clash (a
+    // teammate's change taken uncommitted on a closed trunk comes back up in the next snapshot), and
+    // one real clash does not hold back the rest of the patch's reasoning.
+    const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', `${sha}^`, sha]));
+    for (const f of files) {
+      if (blob(root, sha, f) === blob(root, base, f)) continue;
+      const one = run(root, ['diff-tree', '-p', '--binary', '--full-index', '--no-renames', `${sha}^`, sha, '--', f], { timeout: NET_TIMEOUT_MS });
+      if (!one.ok || !run(root, ['apply', '--cached', '-'], { env, input: one.out, timeout: NET_TIMEOUT_MS }).ok) return null;
     }
     return line(root, ['write-tree'], { env });
   } finally {
@@ -339,6 +345,7 @@ export function applyIncoming(root, s) {
   const know = zlist(git(root, ['diff', '--name-only', '--no-renames', '-z', s.seen, tip, '--', ...paths]))
     .filter(isKnowledge).slice(0, MAX_FILES);
   const who = authorsOf(root, theirs);
+  const closed = branch === defaultBranch(root) && trunkClosed(root);
   const take = [];
   const clash = [];
   for (const f of know) {
@@ -346,7 +353,9 @@ export function applyIncoming(root, s) {
     const mine = worktreeBlob(root, f);
     if (mine === incoming) continue;
     const base = blob(root, s.seen, f);
-    if (blob(root, 'HEAD', f) === base && mine === base) take.push(f);
+    // On a closed trunk HEAD lags behind on purpose (what came in was not committed), so only the
+    // working tree says whether you touched it (review H2).
+    if (mine === base && (closed || blob(root, 'HEAD', f) === base)) take.push(f);
     else clash.push(f);
   }
 
@@ -357,7 +366,7 @@ export function applyIncoming(root, s) {
     if (gone.length) git(root, ['--literal-pathspecs', 'rm', '--quiet', '--', ...gone]);
     // On a default branch closed for the agent nothing is committed there: the files are updated
     // and travel into the next branch the agent opens (regla A).
-    if (!(branch === defaultBranch(root) && trunkClosed(root))) {
+    if (!closed) {
       git(root, ['--literal-pathspecs', 'commit', '--quiet', '--no-verify', '--only',
         '-m', `📥 docs(auto): sync desde ${KNOWLEDGE_BRANCH} ${SKIP_CI}`, '--', ...take]);
     } else {

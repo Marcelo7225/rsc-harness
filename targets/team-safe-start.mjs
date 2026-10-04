@@ -23,8 +23,16 @@ const ok = (root, args) => git(root, args) !== null;
 const real = (p) => { try { return realpathSync(p); } catch { return p; } };
 const stamp = () => new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '').replace(/^(\d{8})(\d{4})$/, '$1-$2');
 
+const RESCUE_MARK = '.team-safe-3-rescue';
+
+/** Once per project and machine, the first session with 3.0 (spec P4): after that, commits on the
+ *  default branch are the person's own business (P3), never moved again (review M1). */
 export async function rescueTrunkCommits(root) {
   try {
+    const mark = join(root, '.rsc', RESCUE_MARK);
+    if (existsSync(mark)) return '';
+    mkdirSync(join(root, '.rsc'), { recursive: true });
+    writeFileSync(mark, `${new Date().toISOString()}\n`);
     const { trunkPolicy, defaultBranchName } = await import(new URL('./trunk-policy.mjs', import.meta.url));
     const branch = git(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
     const trunk = defaultBranchName(root);
@@ -49,11 +57,15 @@ export async function rescueTrunkCommits(root) {
 export async function relocateOldWorktrees(root) {
   try {
     const W = await import(new URL('./worktree-reaper.mjs', import.meta.url));
-    let others = () => [];
-    try {
-      const M = await import(new URL('./session-memory-core.mjs', import.meta.url));
-      others = (path) => M.otherActiveSessions({ cwd: root, worktreeCwd: path });
-    } catch { /* no memory: nobody can be seen working, so nothing is moved (below) */ }
+    // Moving a folder is destructive, so this fails closed: without the memory nobody can be seen
+    // working, and then nothing is moved. A session in an old sibling keeps its journal in the
+    // sibling's own store (it has its own .rsc.json), so both stores are asked (review H3).
+    let M;
+    try { M = await import(new URL('./session-memory-core.mjs', import.meta.url)); } catch { return ''; }
+    const others = (path) => [
+      ...M.otherActiveSessions({ cwd: root, worktreeCwd: path }),
+      ...M.otherActiveSessions({ cwd: path, worktreeCwd: path }),
+    ];
     const home = real(root);
     const moved = [];
     const left = [];
@@ -62,7 +74,8 @@ export async function relocateOldWorktrees(root) {
       if (path === home || path.startsWith(home + sep)) continue; // already inside
       if (W.provenanceOf(root, { ...wt, path }) !== 'rsc') continue;
       if (others(path).length) { left.push(`${path} (una sesión trabaja en él)`); continue; }
-      const dest = join(home, '.worktrees', basename(path).replace(`${basename(home)}-`, ''));
+      const name = basename(path);
+      const dest = join(home, '.worktrees', name.startsWith(`${basename(home)}-`) ? name.slice(basename(home).length + 1) : name);
       if (existsSync(dest)) { left.push(`${path} (ya existe ${dest})`); continue; }
       mkdirSync(join(home, '.worktrees'), { recursive: true });
       if (ok(root, ['worktree', 'move', path, dest])) moved.push(`${path} → .worktrees/${basename(dest)}`);
