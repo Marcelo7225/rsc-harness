@@ -56,6 +56,58 @@ not a pile of whatever an agent happened to install.
 
 ---
 
+## 🛡️ New in 3.0: safe for teams by default
+
+Day one with agents is easy. Day ninety is where harnesses break, especially with several people,
+several assistants and several sessions on one project:
+
+- every machine drifts, and what one person teaches their agent never reaches anyone else;
+- two agents end up working in the same folder and switch branches under each other;
+- someone's agent commits straight to `main` on a project in production;
+- every request gets the same process, whether it is a typo or a new subsystem.
+
+rsc 3.0 fixes all four, by default, with no new commands to learn:
+
+| | What happens | Turn it off |
+| --- | --- | --- |
+| **Main is closed where it matters** | In a project that is complex or in production, the agent never commits on the default branch. It opens a branch on its own (`feat/…`, `fix/…`) and finishes with a pull request. In a project of scripts or research it works on `main`, because a branch there is only ceremony. | Say **«unlock main»**, or `rsc main unlock` |
+| **One workspace per agent** | If another assistant session is working in the same folder, new work goes to a worktree under `.worktrees/<branch>/`. It stays inside the project, is never committed, and is removed once that branch is merged. | `rsc isolation off` |
+| **The agent picks the method** | A simple change takes Fast-Track (one document, proof for every task). Something big or complex takes the spec-driven chain. The agent decides and says why. You still approve *what* gets built: the spec and the clarifications, then step by step or autopilot. | Ask for the other lane |
+| **Knowledge reaches everyone** | `01-TOOLS/` and `02-DOCS/` travel through one exchange branch, `rsc/knowledge`. They go up when your turn ends and come down into whatever branch each person is on. They reach `main` inside your normal pull requests. | `rsc knowledge-sync off` |
+
+**How does it know a project is "complex or in production"?** There are two layers. A hook counts
+what anyone can check: a CI setup, a deployment file (`Dockerfile`, `vercel.json`, `fly.toml`…) or
+at least two people in the last 50 commits. If any of those is there, a commit on the default branch
+is refused before it runs. If none is, the agent decides change by change, using the same rule from
+its skills. If the hook gets it wrong and the project really is simple, «unlock main» opens it for
+the project. That decision is saved in `.rsc.json`, so the whole team gets it.
+
+Every refusal says how to carry on: which branch to open, how to create the worktree, or how to
+unlock. An agent is never left stuck. The rules only see what the **agent** runs; a person
+committing in their own terminal is never touched.
+
+**The first session after upgrading** does three things, once:
+
+- It explains these changes in a few lines.
+- If an agent left commits on a closed `main` that never reached the remote, it moves them to a
+  `rescue/main-<date>` branch and puts `main` back to what the remote has. Nothing is lost.
+- It moves worktrees older versions created next to the project into `.worktrees/`.
+
+```bash
+rsc main status        # open or closed for the agent, and the signals behind it
+rsc main unlock        # this project is simple: the agent may work on main (saved in .rsc.json)
+rsc main lock          # back to the default
+rsc isolation status   # whether another session would send new work to a worktree
+rsc isolation off      # never use worktrees for parallel sessions in this project
+```
+
+> **Limit, stated plainly.** The hook that refuses the commit or the branch switch runs in
+> **Claude Code**, like the other rsc guards. In Codex, Gemini, Cursor and OpenCode the same rules
+> are carried by the skills and by the session memory, which tells the agent that another session is
+> active. They are followed, but no hook enforces them. Knowledge sync works in all five.
+
+---
+
 ## 🤖 For agents: "install this harness"
 
 If you're an AI coding agent (Claude Code, Cursor, Copilot, Codex, Gemini…) and your user
@@ -375,35 +427,55 @@ list somebody has to remember to update is a list that goes quietly stale. Decla
 ### Your wiki and tools stay in sync — on by default
 
 `01-TOOLS/` and `02-DOCS/` are the team's knowledge, so rsc keeps them the same on every machine
-without anybody thinking about git:
+without anybody thinking about git, **and without ever pushing to `main`**. Your `main` is
+protected, or should be; rsc assumes it is.
 
-- **When a turn ends**, your changes there are committed as `📝 docs(auto): … [skip ci]` and pushed
-  to the default branch on `origin` — from whatever branch you are on, without touching your
-  working tree.
-- **Before each message**, what teammates pushed there is applied, and you are told in one line.
+The knowledge travels through one exchange branch, `rsc/knowledge`, that nobody works on by hand:
+
+```text
+ana    · feat/login     edits 02-DOCS/wiki/api.md ──► rsc/knowledge      (when her turn ends)
+eric   · feat/payments  📥 1 change from Ana        ◄── rsc/knowledge      (before his next message)
+main   · protected      untouched — gets it inside the next merged pull request
+new    · clones main    has it all after the first message
+```
+
+- **When a turn ends**, your changes in those folders are committed as `📝 docs(auto): … [skip ci]`
+  and sent to `rsc/knowledge` on `origin`, from whatever branch you are on. If you are on a closed
+  `main`, nothing is committed locally: the snapshot is built aside and only goes to `rsc/knowledge`.
+- **Before each message**, what teammates sent is brought into **the branch you are on**, and you are
+  told in one line. Only the knowledge folders are touched.
+- **It reaches `main` the normal way.** Your feature branch now carries the team's knowledge, so it
+  arrives in `main` inside the pull request you were going to open anyway. There is no extra pull
+  request from `rsc/knowledge`, and nobody has to merge it.
+- The first time, `rsc/knowledge` is created from the remote's default branch. If someone deletes it,
+  it is created again.
 
 What it will not do, by design:
 
 | | |
 | --- | --- |
-| Push your unpushed commits | Only its own commit goes up. Your code waits for you. |
+| Push to `main` | Never. Only `rsc/knowledge` receives anything. |
+| Push your code or your unpushed commits | Only its own snapshot of the knowledge folders goes up. Your code waits for you. |
 | Trigger CI or a deploy | Every automatic commit says `[skip ci]`. |
-| Touch anything outside the knowledge folders | Code, config and `.claude/` coming from others are announced, not pulled. |
+| Bring in anybody else's code | Only knowledge paths come down. Code, config and `.claude/` are never pulled. |
 | Sync `02-DOCS/wiki/harness/user-profile.md` | Those are one person's dials. |
 | Overwrite a file you are editing | It tells you, and your version stays. |
 | Run where it has no business | No `origin`, no knowledge folders, a rebase in progress, a cloud agent: it stays quiet. |
 
-It rides on the session lifecycle hooks, so it works in every assistant with
-[local session memory](#new-sessions-pick-up-the-latest-local-work), and `rsc memory off` turns it
-off too. The first turn says it is on. To turn it off for the project:
+It is wired into the assistant's own turn hooks (end of turn, new message) in Claude Code, Codex,
+Gemini, Cursor and OpenCode (tested end to end in Claude Code, Codex and OpenCode). The network part runs in the background, so a turn never waits for
+it. It is kept apart from the [local session memory](#new-sessions-pick-up-the-latest-local-work),
+which promises never to touch the network. The first turn says it is on. To turn it off for the
+project:
 
 ```bash
 rsc knowledge-sync off      # writes .rsc/.no-knowledge-sync and records it in .rsc.json — commit that
 rsc knowledge-sync status   # active or not, and why
 ```
 
-It is a **project** switch, not a personal one: if one person stopped pushing, the rest of the team
-would stop seeing their work.
+It is a **project** switch, not a personal one: if one person stopped sending, the rest of the team
+would stop seeing their work. For the rest of the 3.0 team defaults, see
+[New in 3.0](#️-new-in-30-safe-for-teams-by-default).
 
 ## 🩹 Something's off? One command
 

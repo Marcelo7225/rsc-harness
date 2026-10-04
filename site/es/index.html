@@ -69,6 +69,7 @@
       <span class="logo" aria-hidden="true">rsc</span>
     </a>
     <nav class="nav" aria-label="Principal">
+      <a class="nav-hide" href="#team">Equipos · 3.0</a>
       <a class="nav-hide" href="#how">Cómo funciona</a>
       <a class="nav-hide" href="#practice">Buenas prácticas</a>
       <a class="nav-hide" href="#skills">Catálogo</a>
@@ -87,7 +88,7 @@
   <section class="hero">
     <div class="wrap hero-grid">
       <div>
-        <p class="eyebrow">Constructor guiado · 17 asistentes · criterio estricto</p>
+        <p class="eyebrow">Constructor guiado · 17 asistentes · <a href="#team">3.0: seguro para equipos</a></p>
         <h1>Tú construyes el proyecto. <span class="hl">rsc-harness construye el arnés.</span></h1>
         <p class="lead">Tú decides qué quieres construir —software, operaciones, investigación, contenidos o una mezcla—. El wizard lo convierte en un sistema mínimo y verificado sin improvisar un arnés Frankenstein.</p>
         <div class="hero-cta">
@@ -126,6 +127,24 @@
       <div class="section-head"><p class="eyebrow">Entra un objetivo, sale un arnés coherente</p><h2 id="how-h">El wizard hace visible cada decisión.</h2></div>
       <div class="steps"><div class="step reveal"><h3>Cuenta el objetivo</h3><p>Di qué quieres construir o gestionar, y si te hablo técnico o con analogías. No necesitas vocabulario de arneses.</p></div><div class="step reveal"><h3>Revisa el plan exacto</h3><p>rsc lee solo la raíz del proyecto y explica cada componente seleccionado, pospuesto y excluido.</p></div><div class="step reveal"><h3>Acepta, verifica y evoluciona</h3><p>No escribe antes de tu aceptación. Verifica el resultado y solo crece después cuando la evidencia lo justifica.</p></div></div>
       <div class="term plan-term reveal"><div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">RSC_ONBOARDING_PLAN</span></div><div class="term-body"><div class="ok">✓ seleccionado · memoria del proyecto · orient · suggest</div><div class="out">○ pospuesto · práctica SDD · instalada, se propone cuando aparezcan funciones coordinadas</div><div class="out">○ excluido · Context7 · no se detecta necesidad de documentación</div><div class="cmd">Plan id · sha256:… · esperando tu aceptación</div></div></div>
+    </div>
+  </section>
+
+  <!-- EQUIPOS (3.0) -->
+  <section id="team" aria-labelledby="team-h">
+    <div class="wrap">
+      <div class="section-head"><p class="eyebrow">Nuevo en 3.0 · seguro para equipos por defecto</p><h2 id="team-h">El primer día con agentes es fácil. El día noventa, con todo el equipo, es donde los arneses se rompen.</h2><p>Cada máquina se desvía, dos agentes acaban editando la misma carpeta, alguien trabaja directamente en <code>main</code> y lo que aprende una persona nunca llega al resto. rsc 3.0 arregla las cuatro cosas, y nadie tiene que aprender un comando nuevo.</p></div>
+      <div class="bento bento-4">
+        <div class="card reveal"><h3>Main cerrada donde importa</h3><p>En un proyecto con CI, despliegue o equipo, el agente nunca comitea en la rama principal: abre la rama solo y la cierra con una PR. En un proyecto de scripts o investigación trabaja en <code>main</code>. Dile <b>«desbloquea main»</b> para abrirla en el proyecto.</p></div>
+        <div class="card reveal"><h3>Un espacio por agente</h3><p>Si otra sesión de un asistente está trabajando en la misma carpeta, el trabajo nuevo va a un worktree en <code>.worktrees/&lt;rama&gt;/</code>, dentro del proyecto y sin comitear. Nadie cambia de rama debajo de otro. Al fusionar, se borra.</p></div>
+        <div class="card reveal"><h3>El agente elige el método</h3><p>Cambio sencillo: FTD (un documento, prueba de cada tarea). Grande o con decisiones que se afectan entre sí: la cadena SDD. Dice cuál y por qué. Tú sigues aprobando <i>qué</i> se construye, y eliges paso a paso o autopiloto.</p></div>
+        <div class="card reveal"><h3>El conocimiento llega a todos</h3><p><code>01-TOOLS/</code> y <code>02-DOCS/</code> viajan por una rama de intercambio, <code>rsc/knowledge</code>: suben al acabar tu turno y bajan a la rama en la que esté cada persona antes de su siguiente mensaje. Llegan a <code>main</code> dentro de vuestras PRs normales.</p></div>
+      </div>
+      <div class="term reveal team-term" aria-label="Sincronización del conocimiento entre dos personas">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">RSC_KNOWLEDGE_SYNC</span></div>
+        <div class="term-body"><div class="ok">✓ ana · feat/login · edita 02-DOCS/wiki/api.md → rsc/knowledge [skip ci]</div><div class="ok">✓ eric · feat/pagos · 📥 1 cambio de Ana: api.md</div><div class="out">○ main · protegida · intacta — llega dentro de la próxima PR fusionada</div><div class="out">○ persona nueva · clona main · lo tiene todo tras su primer mensaje</div></div>
+      </div>
+      <p class="team-note">Nunca: sube tu código, lanza CI o un despliegue, trae código de otros, sincroniza tus ajustes personales ni pisa un fichero que estás editando. Para apagarlo en un proyecto: <code>rsc knowledge-sync off</code>.</p>
     </div>
   </section>
 
