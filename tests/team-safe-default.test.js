@@ -109,12 +109,15 @@ function session(root, id, target = 'codex', at = new Date().toISOString(), extr
 test('tsd20 · another session with work in the last 30 minutes counts; old, closed and self do not', () => {
   const r = repo();
   session(r, 'other', 'codex');
-  session(r, 'old', 'gemini', new Date(Date.now() - ACTIVE_WINDOW_MS - 60000).toISOString());
+  // The spec fixes the window at 30 minutes; a literal, so widening the constant cannot pass.
+  session(r, 'old', 'gemini', new Date(Date.now() - 31 * 60 * 1000).toISOString());
+  session(r, 'recent', 'opencode', new Date(Date.now() - 29 * 60 * 1000).toISOString());
   session(r, 'closed', 'cursor');
   capture({ cwd: r, sessionId: 'closed', target: 'cursor', event: 'sessionEnd' });
   session(r, 'me', 'claude');
   const others = otherActiveSessions({ cwd: r, sessionId: 'me', target: 'claude' });
-  assert.deepEqual(others.map((o) => o.sessionId), ['other']);
+  assert.deepEqual(others.map((o) => o.sessionId).sort(), ['other', 'recent']);
+  assert.equal(ACTIVE_WINDOW_MS, 30 * 60 * 1000);
 });
 
 test('tsd21 · with another active session, switching branches here is denied, with the worktree way out', async () => {
