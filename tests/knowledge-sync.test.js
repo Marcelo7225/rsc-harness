@@ -535,3 +535,45 @@ test('ks48 · closed main without the snapshot chain (an upgrade): our own last 
   assert.equal(kShow(remote, '02-DOCS/wiki/nueva.md'), 'ana', 'a teammate\'s change was overwritten');
   assert.match(state(eric).notices.join(' '), /choca/);
 });
+
+// ------------------------------------------------------------------ committed knowledge (E2E 2026-10-04)
+
+test('ks49 · knowledge the agent committed with its code goes up as its knowledge part only, with [skip ci]', () => {
+  const { remote, eric } = team();
+  quiet(eric);
+  git(eric, 'switch', '-q', '-c', 'feat/x');
+  write(eric, '02-DOCS/wiki/ftd/x.md', '# x\n');
+  write(eric, 'src/app.js', 'code v2\n');
+  git(eric, 'add', '-A'); git(eric, 'commit', '-q', '-m', '✨ feat: x');
+  turn(eric);
+  assert.equal(kShow(remote, '02-DOCS/wiki/ftd/x.md'), '# x');
+  assert.equal(kShow(remote, 'src/app.js'), 'code', 'code travelled through rsc/knowledge');
+  const msg = git(remote, 'log', '-1', '--format=%B', K);
+  assert.match(msg, /^📝 docs\(auto\): x \[skip ci\]/);
+  assert.match(msg, /Desde: ✨ feat: x/);
+  assert.equal(git(remote, 'log', '-1', '--format=%an', K), 'Eric');
+  assert.equal(git(remote, 'rev-parse', 'refs/heads/main'), git(eric, 'rev-parse', 'origin/main'), 'main untouched');
+});
+
+test('ks50 · committed knowledge goes up once; the next commit with docs goes up on its own turn', () => {
+  const { remote, eric } = team();
+  quiet(eric);
+  git(eric, 'switch', '-q', '-c', 'feat/x');
+  write(eric, '02-DOCS/wiki/ftd/x.md', '# x\n'); git(eric, 'add', '-A'); git(eric, 'commit', '-q', '-m', '📝 docs: x');
+  turn(eric);
+  const first = git(remote, 'rev-parse', K);
+  turn(eric);
+  assert.equal(git(remote, 'rev-parse', K), first, 'a turn with nothing new pushed again');
+  write(eric, '02-DOCS/wiki/ftd/x.md', '# x\n\n- [x] done\n'); git(eric, 'commit', '-qam', '✅ test: x');
+  turn(eric);
+  assert.equal(kShow(remote, '02-DOCS/wiki/ftd/x.md'), '# x\n\n- [x] done');
+});
+
+test('ks51 · a commit with only code sends nothing', () => {
+  const { remote, eric } = team();
+  quiet(eric);
+  git(eric, 'switch', '-q', '-c', 'feat/x');
+  write(eric, 'src/app.js', 'code v2\n'); git(eric, 'commit', '-qam', '✨ feat: x');
+  turn(eric);
+  assert.equal(git(remote, 'branch', '--list', K), '', 'rsc/knowledge was created for a code-only commit');
+});
