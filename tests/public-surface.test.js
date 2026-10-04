@@ -29,6 +29,8 @@ const RETIRED = [
   { what: 'routing every feature request through the spec phase', re: /routes? through `?specify`?/i },
   { what: 'the spec-first new-feature gate', re: /new-feature gate|spec-first/i },
   { what: 'a profile to choose at install time', re: /--profile\s+(minimal|core|full)/i },
+  // 3.0 made this false (team-safe-default C): the agent enters the chain itself.
+  { what: 'the chain needs an accepted proposal', re: /accepted proposal|never enters? (?:it|the chain) (?:alone|on its own)/i },
 ];
 
 for (const claim of RETIRED) {
@@ -42,7 +44,8 @@ for (const claim of RETIRED) {
 
 const REQUIRED = [
   { what: 'the default lane has a name', re: /\bFTD\b/, where: ['README.md', 'site/llms.txt'] },
-  { what: 'the chain is not entered by the harness alone', re: /explicit request|accepted proposal|never enters? it alone/i, where: ['README.md'] },
+  // team-safe-default (3.0) reversed who selects the chain: the agent does, and the person keeps the WHAT.
+  { what: 'the agent picks the lane and the person approves the spec', re: /enters it on its own[\s\S]*approve the spec/i, where: ['README.md'] },
   { what: 'a request for information writes nothing', re: /read-only|writes nothing/i, where: ['README.md'] },
   { what: 'isolation is retired automatically once work lands', re: /post-merge|retire[sd]? .*worktree|worktree.*retire/i, where: ['README.md'] },
 ];

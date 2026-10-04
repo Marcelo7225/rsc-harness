@@ -224,6 +224,9 @@ section { padding-block: clamp(3.5rem, 8vw, 6.5rem); }
 .bento { display: grid; gap: 1rem; grid-template-columns: 1fr; }
 @media (min-width: 46rem) { .bento { grid-template-columns: repeat(2, 1fr); } }
 @media (min-width: 64rem) { .bento { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 64rem) { .bento.bento-4 { grid-template-columns: repeat(2, 1fr); } }
+.team-term { margin-top: 1rem; }
+.team-note { margin-top: 1rem; color: var(--muted, inherit); font-size: 0.95rem; max-width: 60rem; }
 .card { border: 1px solid var(--line); border-radius: var(--radius); padding: 1.4rem; background: var(--paper); transition: box-shadow 0.16s var(--ease), border-color 0.16s var(--ease); }
 .card:hover { box-shadow: var(--shadow); border-color: var(--line-2); }
 .card .ic { width: 2.2rem; height: 2.2rem; border-radius: 0.6rem; background: var(--accent-bg); color: var(--accent); display: grid; place-items: center; margin-bottom: 0.9rem; }

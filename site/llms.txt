@@ -19,9 +19,9 @@ Once installed, every turn is classified into exactly one lane, and the agent na
 - FTD (Fast-Track Development) — the request authorises a change. The default for ordinary work.
   One feature document per feature; tasks checked off only against observed proof; a branch when the
   work writes code.
-- SDD — the ten-phase chain. The harness never enters it alone: it proposes the chain only when
-  durable spec/plan/tasks would remove a substantial ambiguity, and enters it only on an explicit
-  request or an accepted proposal. Size, file count and risk never select it.
+- SDD — the ten-phase chain, for big or complex work (several decisions that affect each other, or
+  doubts that change the result). The agent enters it on its own; the person approves the spec and the
+  clarifying answers, then chooses manual review or autopilot. The agent always says which lane and why.
 
 There is one harness and it installs whole; there is no profile to choose.
 

@@ -2,7 +2,7 @@
 import { fileURLToPath } from 'node:url';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
-import { capture, resume } from './session-memory-core.mjs';
+import { capture, otherActiveSessions, resume } from './session-memory-core.mjs';
 
 const LOCAL_TARGETS = new Set(['claude', 'codex', 'cursor', 'gemini', 'opencode']);
 
@@ -88,6 +88,23 @@ function nativeOutput(target, eventName, context = '', notice = null, compaction
   };
 }
 
+/**
+ * team-safe-default B, the half the skills act on: when another session is working in this same
+ * checkout, the model is told — every message, while it lasts — to do new work in a worktree. Local
+ * journal only, no network (the memory's promise stands). `.no-worktree-isolation` turns it off.
+ */
+export function isolationContext({ project, here, sessionId, target }) {
+  if (existsSync(join(project, '.rsc', '.no-worktree-isolation'))) return '';
+  const others = otherActiveSessions({ cwd: project, worktreeCwd: here, sessionId, target });
+  if (!others.length) return '';
+  const who = others.map((o) => `${o.target}${o.branch ? ` en «${o.branch}»` : ''}`).join(', ');
+  return `rsc · aislamiento: otra sesión está trabajando en esta misma carpeta (${who}). ` +
+    'Cualquier cambio de esta petición se hace en un worktree dentro del proyecto: ' +
+    '`git worktree add .worktrees/<rama> -b <rama>` y se trabaja dentro de `.worktrees/<rama>/`. ' +
+    'No cambies de rama en esta carpeta. Dile a la persona en una línea dónde estás trabajando, para que ' +
+    'abra o levante el proyecto desde allí.';
+}
+
 export function contextFromNativeOutput(target, output = {}) {
   if (target === 'cursor') return output.additional_context || '';
   if (target === 'opencode') return output.context || '';
@@ -135,8 +152,9 @@ export function handleLifecycle({ target, event, native = {}, cwd, settings } = 
     // nine rounds of hook → "—" → hook before the client broke the loop. Record the turn, say
     // nothing.
     const silenced = event === 'turn' && Boolean(native?.stop_hook_active);
+    const isolation = event === 'request' ? isolationContext({ project, here, sessionId: id, target }) : '';
     return {
-      output: silenced ? {} : nativeOutput(target, eventName, '', captured.notice, captured.compactionHint),
+      output: silenced ? {} : nativeOutput(target, eventName, isolation, captured.notice, captured.compactionHint),
       capture: captured,
       remote: false,
       degraded: false,

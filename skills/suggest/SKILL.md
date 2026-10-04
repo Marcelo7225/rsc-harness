@@ -26,15 +26,15 @@ recommend. Read-only: write nothing, create no artifact, delegate no writer. Ask
 about* building something is still this lane; only asking to build authorises it. When change
 intent is ambiguous, ask one question and stay here — ambiguity slows the lane, never raises it.
 
-**FTD — Fast-Track Development** — the request authorises a change. The default for ordinary work,
-entered without ceremony. One feature document per feature in `02-DOCS`: intent, scope, checklist,
-evidence, next step. Tasks are checked off against observed proof, never intention. A branch if it
-writes code, none if it only touches docs, wiki or config; never a worktree. → `../ftd/SKILL.md`.
+**You choose the lane; never hand that choice to the person.** Simple → **FTD**: one feature document
+in `02-DOCS` (intent, scope, checklist, evidence, next step), tasks checked off against observed proof.
+Big, or decisions that affect each other → **SDD**: enter the chain; the person approves the spec and
+clarify, then picks manual or autopilot. Say which and why in one line; switch if asked.
+→ `../ftd/SKILL.md` · `../sdd/SKILL.md`.
 
-**SDD** — the ten-phase chain, unchanged, and **never entered by the harness alone**. Propose it only
-when durable spec/plan/tasks would remove a *substantial* ambiguity — a test of usefulness, not of
-size — and enter it only on explicit request or an accepted proposal. Size, file count and perceived
-risk never select it. → `../sdd/SKILL.md`.
+**Where.** Complex or in production → never commit on the default branch: branch yourself, close with
+a PR. Simple → the default branch. Another session in this checkout → `.worktrees/<branch>`. «desbloquea
+main» = `rsc main unlock`; «no uses worktrees» = `rsc isolation off`.
 
 Judge the **meaning**, not the wording: the trigger is semantic in any language. A bug fix restoring
 intended behaviour is `debug`. Autopilot consent covers a whole run — advance without re-asking.

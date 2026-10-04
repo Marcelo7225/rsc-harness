@@ -44,7 +44,7 @@ if (['--version', '-v', 'version'].includes(rawArgv[0])) {
 const GLOBAL_VALUE_FLAGS = new Set([
   '--target', '--technical-level', '--accompaniment', '--project-kind', '--goal', '--goal-base64', '--software-scope', '--accept-plan',
 ]);
-const COMMANDS = new Set(['onboard', 'reassess', 'add', 'install', 'consult', 'catalog', 'audit', 'list', 'doctor', 'memory', 'sync', 'backups', 'restore', 'upgrade', 'registry', 'worktrees', 'capabilities', 'sello', 'repair', 'uninstall', 'purge']);
+const COMMANDS = new Set(['onboard', 'reassess', 'add', 'install', 'consult', 'catalog', 'audit', 'list', 'doctor', 'memory', 'knowledge-sync', 'main', 'isolation', 'sync', 'backups', 'restore', 'upgrade', 'registry', 'worktrees', 'capabilities', 'sello', 'repair', 'uninstall', 'purge']);
 function positionalTokens(input) {
   const out = [];
   for (let i = 0; i < input.length; i++) {
@@ -765,6 +765,72 @@ async function main() {
       if (argv.includes('--json')) return void say(JSON.stringify(report, null, 2));
       printContextBudget(report.contextBudget);
       return void say(JSON.stringify({ ...report, contextBudget: undefined }, null, 2));
+    }
+    case 'main':
+    case 'isolation': {
+      // team-safe-default: the two switches a person asks the agent for in plain words —
+      // «desbloquea main» / «bloquea main», «no uses worktrees» / «usa worktrees». Both are PROJECT
+      // decisions (recorded in .rsc.json optOuts by the sync below) because one person's answer is
+      // the team's: the default branch is open or closed for every agent working on the repo.
+      const isMain = cmd === 'main';
+      const sub = argv[1] || 'status';
+      const root = process.cwd();
+      const { existsSync, mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const marker = join(root, '.rsc', isMain ? '.no-trunk-guard' : '.no-worktree-isolation');
+      const OFF = isMain ? 'unlock' : 'off';
+      const ON = isMain ? 'lock' : 'on';
+      if (sub === OFF || sub === ON) {
+        mkdirSync(join(root, '.rsc'), { recursive: true });
+        if (sub === OFF) writeFileSync(marker, '');
+        else rmSync(marker, { force: true });
+        for (const t of targets) await syncInstalled({ target: t, cwd: root });
+        say(isMain
+          ? (sub === OFF
+            ? 'rsc main unlock: the agent may now work on the default branch in this project. Commit .rsc.json so the team gets the same decision.'
+            : 'rsc main lock: the default branch is closed for the agent again where the project looks complex or in production. Commit .rsc.json so the team gets the same decision.')
+          : (sub === OFF
+            ? 'rsc isolation off: sessions may share this folder without a worktree. Commit .rsc.json so the team gets the same decision.'
+            : 'rsc isolation on: with another session active in this folder, new work goes to .worktrees/<branch>/. Commit .rsc.json so the team gets the same decision.'));
+        return;
+      }
+      if (sub === 'status') {
+        if (isMain) {
+          const { trunkPolicy } = await import('../targets/trunk-policy.mjs');
+          return void say(JSON.stringify(trunkPolicy(root), null, 2));
+        }
+        const { otherActiveSessions } = await import('../targets/session-memory-core.mjs');
+        return void say(JSON.stringify({ isolation: existsSync(marker) ? 'off' : 'on', activeSessions: otherActiveSessions({ cwd: root }) }, null, 2));
+      }
+      say(`Use: npx @ericrisco/rsc ${cmd} ${ON}|${OFF}|status`);
+      process.exitCode = 2;
+      return;
+    }
+    case 'knowledge-sync': {
+      // On by default; the switch is a PROJECT decision (`.no-knowledge-sync`, recorded in `.rsc.json`
+      // optOuts by the sync below), because one person off means the team stops seeing their work.
+      const sub = argv[1] || 'status';
+      const root = process.cwd();
+      const { mkdirSync, writeFileSync, rmSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const marker = join(root, '.rsc', '.no-knowledge-sync');
+      if (sub === 'on' || sub === 'off') {
+        mkdirSync(join(root, '.rsc'), { recursive: true });
+        if (sub === 'off') writeFileSync(marker, '');
+        else rmSync(marker, { force: true });
+        for (const t of targets) await syncInstalled({ target: t, cwd: root });
+        say(sub === 'off'
+          ? 'rsc knowledge-sync off: 01-TOOLS/ and 02-DOCS/ no longer sync on their own in this project. Commit .rsc.json so the team gets the same decision.'
+          : 'rsc knowledge-sync on: 01-TOOLS/ and 02-DOCS/ go up when a turn ends and come down before each message. Commit .rsc.json so the team gets the same decision.');
+        return;
+      }
+      if (sub === 'status') {
+        const { knowledgeStatus } = await import('../targets/knowledge-sync.mjs');
+        return void say(JSON.stringify(knowledgeStatus(root), null, 2));
+      }
+      say('Use: npx @ericrisco/rsc knowledge-sync on|off|status');
+      process.exitCode = 2;
+      return;
     }
     case 'memory': {
       const sub = argv[1] || 'status';

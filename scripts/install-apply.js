@@ -23,6 +23,7 @@ import {
   wireMemory, unwireMemory, memoryManagedPaths, memoryModeFor, memoryEnabledForProject, memoryArtifactsPresent,
 } from '../targets/memory.js';
 import { wireUpdate, unwireUpdate, updateManagedPaths, updateArtifactsPresent } from '../targets/update-wiring.js';
+import { wireKnowledge, unwireKnowledge, knowledgeManagedPaths, knowledgeArtifactsPresent } from '../targets/knowledge-wiring.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI_VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
@@ -80,6 +81,9 @@ export function generatedHookFiles({ target, cwd, policy }) {
     join(cwd, '.rsc', 'hook-once.mjs'),
     join(cwd, '.rsc', 'worktree-reaper.mjs'),
     join(cwd, '.rsc', 'auto-update.mjs'),
+    // team-safe-default: the 3.0 start-up duties and the trunk policy (also read by branch-guard).
+    join(cwd, '.rsc', 'team-safe-start.mjs'),
+    join(cwd, '.rsc', 'trunk-policy.mjs'),
   ];
   // The danger guard is declared on its own terms (#273): present unless the plan says otherwise,
   // whether or not the code guards are.
@@ -87,6 +91,7 @@ export function generatedHookFiles({ target, cwd, policy }) {
   if (policy?.codeHooks === false) return [...lifecycle, ...danger, join(cwd, '.rsc', 'suggest-always-on.md')];
   return [...lifecycle, ...danger,
     join(cwd, '.rsc', 'ship-guard.mjs'),
+    join(cwd, '.rsc', 'branch-guard.mjs'),
     join(cwd, '.rsc', 'gitmoji-guard.mjs'), join(cwd, '.rsc', 'userprompt-gate.mjs'),
     join(cwd, '.rsc', 'sello.mjs')];
 }
@@ -98,6 +103,7 @@ export function managedPathsForInstall({ skillIds, agentIds = [], target, home, 
   if (policy?.context7 === false) out.push(join(cwd, '.rsc', '.no-context7'));
   if (policy?.memory !== false) out.push(...memoryManagedPaths(target, cwd));
   out.push(...updateManagedPaths(target, cwd));
+  out.push(...knowledgeManagedPaths(target, cwd));
   if (targetHasAgents(target)) {
     const state = readState(paths.stateFile);
     const explicit = [...new Set([...(state.explicitAgents || readManifest(cwd)?.agents || []), ...agentIds])];
@@ -302,6 +308,10 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
   state.memory = { mode: memoryResult.mode, reason: memoryResult.reason, paths: memoryResult.paths };
   const updateResult = wireUpdate(target, cwd);
   state.update = { mode: updateResult.mode, ...(updateResult.reason ? { reason: updateResult.reason } : {}) };
+  // Knowledge sync is its own decision (`.no-knowledge-sync`, checked at runtime) and never part of
+  // the memory, so the memory's policy does not decide it: wired wherever the assistant can run it.
+  const knowledgeResult = wireKnowledge(target, cwd);
+  state.knowledge = { mode: knowledgeResult.mode, reason: knowledgeResult.reason || null, paths: knowledgeResult.paths };
   const context7OptOut = join(cwd, '.rsc', '.no-context7');
   if (policy?.context7 === false) {
     mkdirSync(dirname(context7OptOut), { recursive: true });
@@ -602,6 +612,7 @@ export function removeTargetInstall({ target, home, cwd = process.cwd() }) {
   unwireHook(target, paths);
   unwireMemory(target, cwd);
   unwireUpdate(target, cwd);
+  unwireKnowledge(target, cwd);
   rmSync(paths.stateFile, { force: true });
   const gitignore = join(cwd, '.gitignore');
   if (existsSync(gitignore)) {
@@ -711,9 +722,11 @@ export async function purge({ home, cwd = process.cwd(), withDocs = false, dryRu
       removed.push(...unwireHook(target, paths));
       removed.push(...unwireMemory(target, cwd));
       removed.push(...unwireUpdate(target, cwd));
+      removed.push(...unwireKnowledge(target, cwd));
     } else {
       removed.push(...memoryArtifactsPresent(target, cwd));
       removed.push(...updateArtifactsPresent(target, cwd));
+      removed.push(...knowledgeArtifactsPresent(target, cwd));
     }
     // A lost state file also loses proof of ownership. Leave same-named user files
     // behind rather than guessing from a catalog id and deleting their work.

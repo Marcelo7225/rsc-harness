@@ -253,6 +253,17 @@ A no holds for this session. Permanent off: .rsc/.no-worktree-cleanup
   } catch { /* reaper missing or git unhappy → say nothing; this is never worth breaking startup for */ }
 }
 
+// team-safe-default (3.0): rescue commits stranded on a closed default branch, move old sibling
+// worktrees inside the project, and say once what 3.0 changed. Each is silent when there is nothing.
+if (has('.git')) {
+  try {
+    const T = await import('./team-safe-start.mjs');
+    for (const said of [T.teamSafeAnnouncement(root), await T.rescueTrunkCommits(root), await T.relocateOldWorktrees(root)]) {
+      if (said) process.stdout.write(said.startsWith('\n') ? said : `\n${said}\n`);
+    }
+  } catch { /* module missing → nothing to do; never worth breaking startup for */ }
+}
+
 // Update check and auto-update: the rule lives in auto-update.mjs, shared with the other assistants.
 // Disable with RSC_NO_UPDATE_CHECK=1.
 if (!process.env.RSC_NO_UPDATE_CHECK) process.stdout.write(await updateNotice(root));

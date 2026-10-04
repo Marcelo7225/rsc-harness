@@ -25,8 +25,8 @@
   <text x="116" y="82" class="mono ink" font-size="20" font-weight="700">rsc-harness</text>
 
   <text x="62" y="205" class="sans ink" font-size="48" font-weight="750" letter-spacing="-1.8">Every request takes one lane.</text>
-  <text x="62" y="263" class="sans green" font-size="48" font-weight="750" letter-spacing="-1.8">You decide when it gets expensive.</text>
-  <text x="62" y="309" class="sans muted" font-size="19">The harness classifies first and says which lane. It never enters the chain on its own.</text>
+  <text x="62" y="263" class="sans green" font-size="48" font-weight="750" letter-spacing="-1.8">The agent picks it. You decide what gets built.</text>
+  <text x="62" y="309" class="sans muted" font-size="19">The agent classifies first, says which lane and why, and switches if you ask.</text>
 
   <rect x="62" y="348" width="1076" height="305" rx="20" fill="#171d24" stroke="#2d3742"/>
   <text x="88" y="386" class="mono muted" font-size="14">RSC_LANE_DECISOR</text>
@@ -36,13 +36,13 @@
   <text x="250" y="461" class="mono dim" font-size="13">read-only · nothing is written · no artifact created</text>
 
   <text x="88" y="514" class="mono green" font-size="17">✓ FTD</text>
-  <text x="250" y="514" class="sans ink" font-size="18">Fast-Track Development — the default for ordinary change.</text>
+  <text x="250" y="514" class="sans ink" font-size="18">Fast-Track Development — for the simple change.</text>
   <text x="250" y="538" class="mono green" font-size="13" opacity=".85">one feature document · tasks checked off against observed proof</text>
 
   <text x="88" y="591" class="mono amber" font-size="17">○ SDD</text>
-  <text x="250" y="591" class="sans ink" font-size="18">The ten-phase chain — proposed, never auto-selected.</text>
-  <text x="250" y="615" class="mono amber" font-size="13" opacity=".85">entered only on your explicit request, or a proposal you accept</text>
+  <text x="250" y="591" class="sans ink" font-size="18">The ten-phase chain — for the big or complex.</text>
+  <text x="250" y="615" class="mono amber" font-size="13" opacity=".85">the agent enters it · you approve the spec, then manual or autopilot</text>
 
-  <text x="62" y="676" class="mono dim" font-size="13">Size, file count and perceived risk never select the chain.</text>
+  <text x="62" y="676" class="mono dim" font-size="13">Complex = several decisions that affect each other, or doubts that change the result.</text>
   <text x="1138" y="676" class="mono dim" font-size="13" text-anchor="end">friction proportional to risk · constitution §7</text>
 </svg>

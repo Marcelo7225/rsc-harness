@@ -76,6 +76,7 @@
       <span class="logo" aria-hidden="true">rsc</span>
     </a>
     <nav class="nav" aria-label="Primary">
+      <a class="nav-hide" href="#team">Teams · 3.0</a>
       <a class="nav-hide" href="#how">How it works</a>
       <a class="nav-hide" href="#practice">Best practices</a>
       <a class="nav-hide" href="#skills">Catalog</a>
@@ -94,7 +95,7 @@
   <section class="hero">
     <div class="wrap hero-grid">
       <div>
-        <p class="eyebrow">Guided harness builder · 17 assistants · strict by design</p>
+        <p class="eyebrow">Guided harness builder · 17 assistants · <a href="#team">3.0: safe for teams</a></p>
         <h1>You build the project. <span class="hl">rsc-harness builds the harness.</span></h1>
         <p class="lead">You decide what to build — software, operations, research, content, or a mix. The wizard turns that goal into a minimal, verified setup without improvising a Frankenstein harness.</p>
         <div class="hero-cta">
@@ -146,6 +147,24 @@
         <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">RSC_ONBOARDING_PLAN</span></div>
         <div class="term-body"><div class="ok">✓ selected · project memory · orient · suggest · ftd</div><div class="out">○ deferred · SDD practice · installed, proposed when coordinated features appear</div><div class="out">○ excluded · Context7 · no library-doc need detected</div><div class="cmd">Plan id · sha256:… · waiting for your acceptance</div></div>
       </div>
+    </div>
+  </section>
+
+  <!-- TEAMS (3.0) -->
+  <section id="team" aria-labelledby="team-h">
+    <div class="wrap">
+      <div class="section-head"><p class="eyebrow">New in 3.0 · safe for teams by default</p><h2 id="team-h">Day one with agents is easy. Day ninety, with a whole team, is where harnesses break.</h2><p>Every machine drifts, two agents end up editing the same folder, someone works straight on <code>main</code>, and what one person learns never reaches the others. rsc 3.0 fixes the four, and nobody has to learn a new command.</p></div>
+      <div class="bento bento-4">
+        <div class="card reveal"><h3>Main is closed where it matters</h3><p>In a project with CI, a deployment or a team, the agent never commits on the default branch: it opens the branch itself and closes it with a pull request. In a project of scripts or research it works on <code>main</code>. Say <b>«unlock main»</b> to open it for the project.</p></div>
+        <div class="card reveal"><h3>One workspace per agent</h3><p>If another assistant session is working in the same folder, new work goes to a worktree in <code>.worktrees/&lt;branch&gt;/</code>, inside the project and never committed. Nobody switches branches under somebody else. Merged, it is removed.</p></div>
+        <div class="card reveal"><h3>The agent picks the method</h3><p>Simple change: Fast-Track (one document, proof for every task). Big or with decisions that affect each other: the spec-driven chain. It says which and why. You still approve <i>what</i> gets built, then choose step by step or autopilot.</p></div>
+        <div class="card reveal"><h3>Knowledge reaches everyone</h3><p><code>01-TOOLS/</code> and <code>02-DOCS/</code> travel through one exchange branch, <code>rsc/knowledge</code>: up when your turn ends, down to whatever branch each person is on before their next message. They reach <code>main</code> inside your normal pull requests.</p></div>
+      </div>
+      <div class="term reveal team-term" aria-label="Knowledge sync between two people">
+        <div class="term-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="title">RSC_KNOWLEDGE_SYNC</span></div>
+        <div class="term-body"><div class="ok">✓ ana · feat/login · edits 02-DOCS/wiki/api.md → rsc/knowledge [skip ci]</div><div class="ok">✓ eric · feat/payments · 📥 1 change from Ana: api.md</div><div class="out">○ main · protected · untouched — arrives inside the next merged PR</div><div class="out">○ new teammate · clones main · has it all after the first message</div></div>
+      </div>
+      <p class="team-note">Never: pushes your code, triggers CI or a deploy, pulls in someone else's code, syncs your personal settings, or overwrites a file you are editing. Off for a project: <code>rsc knowledge-sync off</code>.</p>
     </div>
   </section>
 

@@ -31,8 +31,10 @@ test('always-on body: states the three-lane decisor, not just a pointer to it', 
   assert.match(body, /\bSDD\b/, 'names the chain');
   assert.match(body, /read-only/i, 'names the lane that writes nothing — the one the old rule lacked');
   assert.match(body, /`debug`/, 'names the bug-fix route');
-  assert.match(body, /never entered by the harness alone|explicit request or an accepted proposal/i,
+  // 3.0 (team-safe-default C) reversed it: the agent selects, the person keeps the spec approval.
+  assert.match(body, /never hand that choice to the person/i,
     'and states WHO selects the chain, which is the whole change');
+  assert.match(body, /approves the spec/i, 'and what stays the person\'s');
   assert.match(body, /before anything is written/i, 'the rule itself, not just a pointer');
 });
 

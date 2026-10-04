@@ -53,10 +53,16 @@ the chain: a result asserted without evidence is treated as not done.
 
 ## Isolation
 
-If the work writes code, it runs on a branch — never on the default branch, so `origin` and the local
-tree stay clean. **No worktree**: this lane is short enough that setting one up and tearing it down
-costs more than it protects. Work that only touches documentation, the wiki or configuration needs no
-branch at all.
+Where the work runs depends on the project, judged change by change (team-safe-default):
+
+- **Complex or in production** (deploys, CI, several people committing, a protected default branch)
+  → a branch, never the default branch. Open it yourself, named by intent, and close it with a pull
+  request. Something unrelated to the current branch gets its own branch from the default one.
+- **Simple** (scripts, research, personal) → the default branch is fine.
+- **Another session working in this same folder** → a worktree in `.worktrees/<branch>/`, never a
+  branch switch under the other session. rsc tells you when that is the case.
+
+A worktree only when another session is there: alone, setting one up costs more than it protects.
 
 `../worktrees/SKILL.md` owns the isolation mechanics if you need them. Once the branch lands, the
 cleanup is automatic and you do not run anything.
