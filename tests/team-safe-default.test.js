@@ -73,6 +73,17 @@ test('tsd14 · a search for the words "git commit" on a closed default branch is
   assert.equal(await evaluate({ root: r, command: 'grep -rn "git commit" docs/', cwd: r }), null);
 });
 
+test('tsd15 · the way out of a closed default branch: alone → a branch in this folder; with company → .worktrees/', async () => {
+  // E2E 2026-10-04: told only "a branch", an agent alone reached for its assistant's own worktree tool.
+  const r = repo(); write(r, 'Dockerfile');
+  const alone = await evaluate({ root: r, command: 'git commit -m x', cwd: r, sessionId: 'me' });
+  assert.match(alone, /stay in this same folder, no worktree/);
+  assert.doesNotMatch(alone, /worktree add/);
+  session(r, 'other', 'codex');
+  const shared = await evaluate({ root: r, command: 'git commit -m x', cwd: r, sessionId: 'me' });
+  assert.match(shared, /git worktree add \.worktrees\/<branch> -b feat\//);
+});
+
 test('tsd11 · commits are allowed on a branch, in a simple project, and once unlocked', async () => {
   const r = repo(); write(r, 'Dockerfile');
   git(r, 'switch', '-q', '-c', 'feat/x');

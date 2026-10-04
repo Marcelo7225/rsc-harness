@@ -76,8 +76,19 @@ export async function evaluate({ root, command, cwd, sessionId }) {
       if (branch && trunk && branch === trunk) {
         const policy = trunkPolicy(here);
         if (policy.closed) {
+          // Where the branch goes depends on rule B: alone → this same folder; with company → .worktrees/.
+          let others = [];
+          if (!existsSync(join(root, '.rsc', '.no-worktree-isolation'))) {
+            try {
+              const { otherActiveSessions } = await import(self('./session-memory-core.mjs'));
+              others = otherActiveSessions({ cwd: root, worktreeCwd: here, sessionId, target: 'claude' });
+            } catch { /* no memory → treated as alone */ }
+          }
+          const where = others.length
+            ? 'Another session is working in this folder, so open it as a worktree inside the project: `git worktree add .worktrees/<branch> -b feat/<what-you-are-doing>` and commit inside `.worktrees/<branch>/`'
+            : 'You are the only session here, so stay in this same folder, no worktree: `git switch -c feat/<what-you-are-doing>` (or fix/…, docs/…) and commit there';
           return `This project keeps its default branch "${trunk}" closed for the agent (it looks complex or in production: ${policy.signals.join(', ')}). ` +
-            `Do this work on a branch instead: \`git switch -c feat/<what-you-are-doing>\` (or fix/…, docs/…), then commit there; it reaches "${trunk}" through a pull request. ` +
+            `Do this work on a branch instead. ${where}; it reaches "${trunk}" through a pull request. ` +
             'If this project is actually simple and the person asks to unlock it, run `npx @ericrisco/rsc main unlock` (a project decision, saved in .rsc.json).';
         }
       }
