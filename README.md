@@ -442,6 +442,8 @@ new    · clones main    has it all after the first message
 - **When a turn ends**, your changes in those folders are committed as `📝 docs(auto): … [skip ci]`
   and sent to `rsc/knowledge` on `origin`, from whatever branch you are on. If you are on a closed
   `main`, nothing is committed locally: the snapshot is built aside and only goes to `rsc/knowledge`.
+  Knowledge that you or the agent already **committed** on the branch during the turn goes up too —
+  only its `01-TOOLS/` and `02-DOCS/` part, under a `docs(auto) … [skip ci]` message.
 - **Before each message**, what teammates sent is brought into **the branch you are on**, and you are
   told in one line. Only the knowledge folders are touched.
 - **It reaches `main` the normal way.** Your feature branch now carries the team's knowledge, so it
@@ -455,7 +457,7 @@ What it will not do, by design:
 | | |
 | --- | --- |
 | Push to `main` | Never. Only `rsc/knowledge` receives anything. |
-| Push your code or your unpushed commits | Only its own snapshot of the knowledge folders goes up. Your code waits for you. |
+| Push your code or your unpushed commits | Only the knowledge folders go up, even from a commit that also has code. Your code waits for you. |
 | Trigger CI or a deploy | Every automatic commit says `[skip ci]`. |
 | Bring in anybody else's code | Only knowledge paths come down. Code, config and `.claude/` are never pulled. |
 | Sync `02-DOCS/wiki/harness/user-profile.md` | Those are one person's dials. |

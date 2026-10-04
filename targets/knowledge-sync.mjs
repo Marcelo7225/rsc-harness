@@ -104,7 +104,7 @@ const worktreeBlob = (root, path) => (existsSync(join(root, path)) ? line(root, 
 function readState(root) {
   let s = {};
   try { s = JSON.parse(readFileSync(join(root, '.rsc', STATE), 'utf8')); } catch { /* first run */ }
-  return { announced: false, seen: null, queue: [], ours: [], notices: [], lastFetch: 0, snap: null, ...s };
+  return { announced: false, seen: null, queue: [], ours: [], notices: [], lastFetch: 0, snap: null, head: null, ...s };
 }
 
 function writeState(root, s) {
@@ -232,6 +232,26 @@ export function commitLocal(root, s) {
   return sha;
 }
 
+/**
+ * Knowledge the agent (or the person) committed on the branch since the last turn goes up too. Without
+ * this only what was still uncommitted when the turn ended travelled, and an agent that commits its
+ * feature document with its code in one long turn left nothing to send (E2E 2026-10-04). The first
+ * time, and after a branch switch, it starts where the branch left the remote default branch.
+ */
+export function queueCommitted(root, s) {
+  const branch = line(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (!branch || branch === 'HEAD') return;
+  const head = line(root, ['rev-parse', 'HEAD']);
+  const def = defaultBranch(root);
+  const remoteDef = def && line(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${def}`]);
+  const valid = s.head && line(root, ['rev-parse', '--verify', '--quiet', `${s.head}^{commit}`])
+    && run(root, ['merge-base', '--is-ancestor', s.head, head]).ok;
+  const from = valid ? s.head : (remoteDef && line(root, ['merge-base', 'HEAD', remoteDef]));
+  if (!head || !from || from === head) return;
+  const commits = git(root, ['rev-list', '--reverse', '--no-merges', `${from}..${head}`, '--', ...KNOWLEDGE]).split('\n').filter(Boolean);
+  for (const c of commits) if (!s.queue.includes(c) && !s.ours.includes(c)) s.queue.push(c);
+}
+
 // ------------------------------------------------------------------ network: up
 
 /**
@@ -241,7 +261,9 @@ export function commitLocal(root, s) {
  */
 function replay(root, base, sha, ours = []) {
   if (!line(root, ['rev-parse', '--verify', '--quiet', `${sha}^`])) return null;
-  const patch = run(root, ['diff-tree', '-p', '--binary', '--full-index', `${sha}^`, sha], { timeout: NET_TIMEOUT_MS });
+  // Only the knowledge paths: a commit of the agent's own on a branch also carries code, and code never
+  // travels this way.
+  const patch = run(root, ['diff-tree', '-p', '--binary', '--full-index', `${sha}^`, sha, '--', ...KNOWLEDGE], { timeout: NET_TIMEOUT_MS });
   if (!patch.ok) return null;
   if (!patch.out.trim()) return line(root, ['rev-parse', `${base}^{tree}`]);
   const env = { GIT_INDEX_FILE: join(root, '.rsc', 'knowledge-sync.index') };
@@ -250,7 +272,7 @@ function replay(root, base, sha, ours = []) {
     // File by file: one that is already there as it should be is skipped, not read as a clash (a
     // teammate's change taken uncommitted on a closed trunk comes back up in the next snapshot), and
     // one real clash does not hold back the rest of the patch's reasoning.
-    const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', `${sha}^`, sha]));
+    const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', `${sha}^`, sha, '--', ...KNOWLEDGE])).filter(isKnowledge);
     for (const f of files) {
       const next = blob(root, sha, f);
       const there = blob(root, base, f);
@@ -304,13 +326,19 @@ export function ship(root, s) {
       if (!line(root, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`])) continue; // rewritten away
       const tree = replay(root, base, sha, s.ours);
       if (tree === null) {
-        const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha]));
+        const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha, '--', ...KNOWLEDGE])).filter(isKnowledge);
         note(s, `No he podido subir ${listed(files)}: choca con un cambio que ya está en ${KNOWLEDGE_BRANCH}. ` +
           'Tu versión sigue aquí; hay que juntarlas a mano.');
         continue;
       }
       if (tree === line(root, ['rev-parse', `${base}^{tree}`])) { kept.push(sha); continue; } // already there
-      const [name, email, date, ...body] = git(root, ['log', '-1', '--format=%an%n%ae%n%aI%n%B', sha]).split('\n');
+      const [name, email, date, ...rest] = git(root, ['log', '-1', '--format=%an%n%ae%n%aI%n%B', sha]).split('\n');
+      // A commit of somebody's own (code + docs) goes up as its knowledge part, under a message that
+      // says so and carries [skip ci]: its own message would describe code that is not there, and
+      // would run CI on the exchange branch.
+      const body = rest.join('\n').includes(SKIP_CI) ? rest : [
+        `📝 docs(auto): ${summary(zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha, '--', ...KNOWLEDGE])).filter(isKnowledge))} ${SKIP_CI}`,
+        '', `Desde: ${rest[0] || sha.slice(0, 7)}`];
       base = git(root, ['commit-tree', tree, '-p', base, '-F', '-'], {
         input: body.join('\n'),
         env: { GIT_AUTHOR_NAME: name, GIT_AUTHOR_EMAIL: email, GIT_AUTHOR_DATE: date },
@@ -448,7 +476,9 @@ export function onTurn(root, { spawnShip = true } = {}) {
   try {
     if (inactiveReason(root) || busy(root)) return;
     const pending = locked(root, (s) => {
+      try { queueCommitted(root, s); } catch { /* the next turn looks again */ }
       try { commitLocal(root, s); } catch (e) { note(s, `La sincronización del conocimiento no pudo comitear: ${clean(e.message, 160)}`); }
+      s.head = line(root, ['rev-parse', '--verify', '--quiet', 'HEAD']) || s.head;
       return s.queue.length;
     });
     if (pending && spawnShip) background(root, 'ship');
