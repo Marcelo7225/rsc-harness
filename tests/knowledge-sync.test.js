@@ -516,3 +516,22 @@ test('ks47 · a merge in progress inside .worktrees/ is seen, and its conflict i
   onTurn(wt, { spawnShip: false });
   assert.equal(git(wt, 'status', '--porcelain', '--', '02-DOCS'), 'UU 02-DOCS/wiki/index.md');
 });
+
+test('ks48 · closed main without the snapshot chain (an upgrade): our own last upload is replaced, a teammate\'s never', () => {
+  const { remote, eric, ana } = team();
+  makeComplex(eric); git(eric, 'add', '-A'); git(eric, 'commit', '-q', '-m', 'ci');
+  quiet(eric); quiet(ana);
+  write(eric, '02-DOCS/wiki/nueva.md', 'v1\n'); turn(eric);
+  const drop = () => { const s = state(eric); delete s.snap; writeFileSync(join(eric, '.rsc', 'knowledge-sync.json'), JSON.stringify(s)); };
+  drop();
+  write(eric, '02-DOCS/wiki/nueva.md', 'v2\n'); turn(eric);
+  assert.equal(kShow(remote, '02-DOCS/wiki/nueva.md'), 'v2', 'E2E 2026-10-04: the second edit after an upgrade stayed behind');
+  // Ana changes it on rsc/knowledge; Eric, without having taken it, edits again: that is a real clash.
+  git(ana, 'switch', '-q', '-c', 'feat/a');
+  message(ana);
+  write(ana, '02-DOCS/wiki/nueva.md', 'ana\n'); turn(ana);
+  drop();
+  write(eric, '02-DOCS/wiki/nueva.md', 'v3\n'); turn(eric);
+  assert.equal(kShow(remote, '02-DOCS/wiki/nueva.md'), 'ana', 'a teammate\'s change was overwritten');
+  assert.match(state(eric).notices.join(' '), /choca/);
+});

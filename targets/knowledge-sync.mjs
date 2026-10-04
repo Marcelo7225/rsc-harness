@@ -239,7 +239,7 @@ export function commitLocal(root, s) {
  * A throwaway index under `.rsc/` and `git apply --cached`: the real index and the working tree are
  * never read or written, and it works on any git (`merge-tree --merge-base` needs 2.40).
  */
-function replay(root, base, sha) {
+function replay(root, base, sha, ours = []) {
   if (!line(root, ['rev-parse', '--verify', '--quiet', `${sha}^`])) return null;
   const patch = run(root, ['diff-tree', '-p', '--binary', '--full-index', `${sha}^`, sha], { timeout: NET_TIMEOUT_MS });
   if (!patch.ok) return null;
@@ -252,7 +252,21 @@ function replay(root, base, sha) {
     // one real clash does not hold back the rest of the patch's reasoning.
     const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', `${sha}^`, sha]));
     for (const f of files) {
-      if (blob(root, sha, f) === blob(root, base, f)) continue;
+      const next = blob(root, sha, f);
+      const there = blob(root, base, f);
+      if (next === there) continue;
+      // What is there is what this change started from, or what we ourselves put there last: ours
+      // to replace whole. (A snapshot from a closed trunk can start from HEAD, behind our own last
+      // upload — after an upgrade, or once the chain is lost.)
+      const last = line(root, ['log', '-1', '--format=%H', base, '--', f]);
+      if (there === blob(root, `${sha}^`, f) || (last && ours.includes(last))) {
+        const entry = next && line(root, ['ls-tree', sha, '--', f]);
+        const ok = next
+          ? run(root, ['update-index', '--add', '--cacheinfo', `${entry.split(' ')[0]},${next},${f}`], { env }).ok
+          : run(root, ['update-index', '--force-remove', '--', f], { env }).ok;
+        if (!ok) return null;
+        continue;
+      }
       const one = run(root, ['diff-tree', '-p', '--binary', '--full-index', '--no-renames', `${sha}^`, sha, '--', f], { timeout: NET_TIMEOUT_MS });
       if (!one.ok || !run(root, ['apply', '--cached', '-'], { env, input: one.out, timeout: NET_TIMEOUT_MS }).ok) return null;
     }
@@ -288,7 +302,7 @@ export function ship(root, s) {
     const kept = [];
     for (const sha of s.queue) {
       if (!line(root, ['rev-parse', '--verify', '--quiet', `${sha}^{commit}`])) continue; // rewritten away
-      const tree = replay(root, base, sha);
+      const tree = replay(root, base, sha, s.ours);
       if (tree === null) {
         const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha]));
         note(s, `No he podido subir ${listed(files)}: choca con un cambio que ya está en ${KNOWLEDGE_BRANCH}. ` +
