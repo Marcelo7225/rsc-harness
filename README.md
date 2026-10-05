@@ -75,6 +75,27 @@ rsc 3.0 fixes all four, by default, with no new commands to learn:
 | **The agent picks the method** | A simple change takes Fast-Track (one document, proof for every task). Something big or complex takes the spec-driven chain. The agent decides and says why. You still approve *what* gets built: the spec and the clarifications, then step by step or autopilot. | Ask for the other lane |
 | **Knowledge reaches everyone** | `01-TOOLS/` and `02-DOCS/` travel through one exchange branch, `rsc/knowledge`. They go up when your turn ends and come down into whatever branch each person is on. They reach `main` inside your normal pull requests. | `rsc knowledge-sync off` |
 
+**Commit, push and pull request without a prompt each time.** A harness installed from scratch lets
+the agent run `git commit`, `git push` and `gh pr create` without asking, because those are the steps
+that close every lane. A force-push still asks. The guards still decide: a commit on a closed `main` is
+refused whatever the permission says. It is a project decision, saved as `gitPermissions` in
+`.rsc.json`. A clone gets the same setting. A project adopted before this is left as it was until
+someone runs `rsc git-permissions on`.
+
+| Assistant | Where it goes |
+| --- | --- |
+| Claude Code | `.claude/settings.json` → `permissions.allow` (force-push under `ask`). Claude Code applies it once the folder is trusted. |
+| Codex | `.codex/rules/rsc-git.rules` (`prefix_rule`; force-push → `prompt`). Loaded when the project is trusted. |
+| Gemini | `.gemini/settings.json` → `tools.allowed` |
+| OpenCode | `opencode.json` → `permission.bash` (force-push → `ask`) |
+| Cursor | Not covered: its CLI matches only the first word, so allowing a push would allow every git command. |
+
+```bash
+rsc git-permissions status   # decided or not, and wired per assistant
+rsc git-permissions off      # ask again for commit, push and PR (saved in .rsc.json)
+rsc git-permissions on       # turn it on, also for a project adopted before
+```
+
 **How does it know a project is "complex or in production"?** There are two layers. A hook counts
 what anyone can check: a CI setup, a deployment file (`Dockerfile`, `vercel.json`, `fly.toml`…) or
 at least two people in the last 50 commits. If any of those is there, a commit on the default branch

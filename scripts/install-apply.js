@@ -24,6 +24,7 @@ import {
 } from '../targets/memory.js';
 import { wireUpdate, unwireUpdate, updateManagedPaths, updateArtifactsPresent } from '../targets/update-wiring.js';
 import { wireKnowledge, unwireKnowledge, knowledgeManagedPaths, knowledgeArtifactsPresent } from '../targets/knowledge-wiring.js';
+import { wireGitPermissions, unwireGitPermissions, gitPermissionsPath } from '../targets/git-permissions.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI_VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
@@ -104,6 +105,7 @@ export function managedPathsForInstall({ skillIds, agentIds = [], target, home, 
   if (policy?.memory !== false) out.push(...memoryManagedPaths(target, cwd));
   out.push(...updateManagedPaths(target, cwd));
   out.push(...knowledgeManagedPaths(target, cwd));
+  if (gitPermissionsPath(target, cwd)) out.push(gitPermissionsPath(target, cwd)); // backed up before it is merged into
   if (targetHasAgents(target)) {
     const state = readState(paths.stateFile);
     const explicit = [...new Set([...(state.explicitAgents || readManifest(cwd)?.agents || []), ...agentIds])];
@@ -196,7 +198,7 @@ export function hydrateLocalDecisions(cwd, manifest) {
 // into codex on a machine that already had claude is adding, not replacing. Union, sorted
 // where order carries no meaning, so the file stays diffable and a merge conflict stays
 // readable.
-export function recordInManifest({ cwd, target, skillIds, agentIds = [], catalogVersion = CLI_VERSION, dropTarget, onboarding }) {
+export function recordInManifest({ cwd, target, skillIds, agentIds = [], catalogVersion = CLI_VERSION, dropTarget, onboarding, gitPermissions }) {
   const prev = readManifest(cwd) || { targets: [], skills: [], agents: [], ownSkills: [], optOuts: [] };
   const { optOuts, tier } = localDecisions(cwd);
   const union = (a, b) => [...new Set([...(a || []), ...(b || [])])].sort();
@@ -215,6 +217,7 @@ export function recordInManifest({ cwd, target, skillIds, agentIds = [], catalog
     tier: tier ?? prev.tier ?? null,
     optOuts: optOuts ?? projectOptOuts(prev.optOuts),
     memory: prev.memory,
+    gitPermissions: gitPermissions ?? prev.gitPermissions,
     onboarding: onboarding ?? prev.onboarding,
   });
 }
@@ -225,6 +228,11 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
   // declaration is the only thing that knows what the team decided) from a built machine (the
   // local markers are the authority, and a pull must not overwrite them).
   const fromScratch = !existsSync(join(cwd, '.rsc'));
+  // Git permissions are on for a project adopted from scratch (no manifest yet); an older project
+  // keeps what it declared, and absent means "never decided": nothing is added or removed there.
+  const declaredGit = readManifest(cwd)?.gitPermissions;
+  const newProject = !existsSync(join(cwd, '.rsc.json'));
+  const gitPermissions = newProject ? true : declaredGit;
   const paths = targetPaths(target, home, cwd);
   const plan = planInstall({ skillIds, target, home, cwd, hooks: policy?.alwaysOn !== false });
   // What this pass prunes, decided BEFORE the backup so the backup holds it: a skill link this
@@ -312,6 +320,8 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
   // the memory, so the memory's policy does not decide it: wired wherever the assistant can run it.
   const knowledgeResult = wireKnowledge(target, cwd);
   state.knowledge = { mode: knowledgeResult.mode, reason: knowledgeResult.reason || null, paths: knowledgeResult.paths };
+  if (gitPermissions === true) state.gitPermissions = wireGitPermissions(target, cwd);
+  else if (gitPermissions === false) { unwireGitPermissions(target, cwd); state.gitPermissions = { mode: 'off' }; }
   const context7OptOut = join(cwd, '.rsc', '.no-context7');
   if (policy?.context7 === false) {
     mkdirSync(dirname(context7OptOut), { recursive: true });
@@ -339,7 +349,7 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
   writeState(paths.stateFile, state);
   mkdirSync(dirname(versionFile(cwd)), { recursive: true });
   writeFileSync(versionFile(cwd), CLI_VERSION + '\n');
-  recordInManifest({ cwd, target, skillIds, agentIds, onboarding });
+  recordInManifest({ cwd, target, skillIds, agentIds, onboarding, gitPermissions });
   // The worktree cleanup's trigger. It lives in `.git/hooks/`, which is NOT cloned, so it has to be
   // (re)written by every operation that touches a user's repo — install, sync and repair all land
   // here. Target-agnostic on purpose: it is a git hook, not an assistant hook, and a cleanup that
@@ -613,6 +623,7 @@ export function removeTargetInstall({ target, home, cwd = process.cwd() }) {
   unwireMemory(target, cwd);
   unwireUpdate(target, cwd);
   unwireKnowledge(target, cwd);
+  unwireGitPermissions(target, cwd);
   rmSync(paths.stateFile, { force: true });
   const gitignore = join(cwd, '.gitignore');
   if (existsSync(gitignore)) {
@@ -723,6 +734,7 @@ export async function purge({ home, cwd = process.cwd(), withDocs = false, dryRu
       removed.push(...unwireMemory(target, cwd));
       removed.push(...unwireUpdate(target, cwd));
       removed.push(...unwireKnowledge(target, cwd));
+      removed.push(...unwireGitPermissions(target, cwd));
     } else {
       removed.push(...memoryArtifactsPresent(target, cwd));
       removed.push(...updateArtifactsPresent(target, cwd));

@@ -15,7 +15,7 @@ import { join } from 'node:path';
 export const MANIFEST = '.rsc.json';
 export const manifestPath = (cwd = process.cwd()) => join(cwd, MANIFEST);
 
-const KEYS = ['version', 'targets', 'skills', 'agents', 'ownSkills', 'catalogVersion', 'tier', 'optOuts', 'memory', 'onboarding'];
+const KEYS = ['version', 'targets', 'skills', 'agents', 'ownSkills', 'catalogVersion', 'tier', 'optOuts', 'memory', 'gitPermissions', 'onboarding'];
 
 export function readManifest(cwd = process.cwd()) {
   const file = manifestPath(cwd);
@@ -38,6 +38,8 @@ export function readManifest(cwd = process.cwd()) {
     tier: raw.tier ?? null,
     optOuts: raw.optOuts || [],
     memory: raw.memory ?? undefined,
+    // true on a project installed from scratch since 3.0.3; absent on older ones; false once turned off.
+    gitPermissions: typeof raw.gitPermissions === 'boolean' ? raw.gitPermissions : undefined,
     onboarding: raw.onboarding ?? undefined,
   };
 }
