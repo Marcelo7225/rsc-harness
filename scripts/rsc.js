@@ -44,7 +44,7 @@ if (['--version', '-v', 'version'].includes(rawArgv[0])) {
 const GLOBAL_VALUE_FLAGS = new Set([
   '--target', '--technical-level', '--accompaniment', '--project-kind', '--goal', '--goal-base64', '--software-scope', '--accept-plan',
 ]);
-const COMMANDS = new Set(['onboard', 'reassess', 'add', 'install', 'consult', 'catalog', 'audit', 'list', 'doctor', 'memory', 'knowledge-sync', 'main', 'isolation', 'sync', 'backups', 'restore', 'upgrade', 'registry', 'worktrees', 'capabilities', 'sello', 'repair', 'uninstall', 'purge']);
+const COMMANDS = new Set(['onboard', 'reassess', 'add', 'install', 'consult', 'catalog', 'audit', 'list', 'doctor', 'memory', 'knowledge-sync', 'git-permissions', 'main', 'isolation', 'sync', 'backups', 'restore', 'upgrade', 'registry', 'worktrees', 'capabilities', 'sello', 'repair', 'uninstall', 'purge']);
 function positionalTokens(input) {
   const out = [];
   for (let i = 0; i < input.length; i++) {
@@ -829,6 +829,36 @@ async function main() {
         return void say(JSON.stringify(knowledgeStatus(root), null, 2));
       }
       say('Use: npx @ericrisco/rsc knowledge-sync on|off|status');
+      process.exitCode = 2;
+      return;
+    }
+    case 'git-permissions': {
+      // On for a project installed from scratch: the agent commits, pushes and opens the PR without a
+      // prompt each time (a force-push still asks; the guards still apply). A PROJECT decision, saved as
+      // `gitPermissions` in `.rsc.json` so a clone gets the same; an older project starts undecided.
+      const sub = argv[1] || 'status';
+      const root = process.cwd();
+      const { readManifest, writeManifest } = await import('./lib/manifest-file.js');
+      const { gitPermissionsWired, GIT_PERMISSION_TARGETS } = await import('../targets/git-permissions.js');
+      if (sub === 'on' || sub === 'off') {
+        const current = readManifest(root);
+        if (!current) { say('No .rsc.json here: install the harness first (`npx @ericrisco/rsc onboard`).'); process.exitCode = 2; return; }
+        writeManifest(root, { ...current, gitPermissions: sub === 'on' });
+        for (const t of targets) await syncInstalled({ target: t, cwd: root });
+        say(sub === 'on'
+          ? 'rsc git-permissions on: the agent may git commit, git push and gh pr create without asking (a force-push still asks; Cursor is not covered). Commit .rsc.json so the team gets the same decision.'
+          : 'rsc git-permissions off: commit, push and PR ask again, as the assistant does by default. Commit .rsc.json so the team gets the same decision.');
+        return;
+      }
+      if (sub === 'status') {
+        const declared = readManifest(root)?.gitPermissions;
+        return void say(JSON.stringify({
+          declared: declared === undefined ? 'undecided' : declared,
+          wired: Object.fromEntries(targets.filter((t) => GIT_PERMISSION_TARGETS.includes(t)).map((t) => [t, gitPermissionsWired(t, root)])),
+          notCovered: targets.filter((t) => !GIT_PERMISSION_TARGETS.includes(t)),
+        }, null, 2));
+      }
+      say('Use: npx @ericrisco/rsc git-permissions on|off|status');
       process.exitCode = 2;
       return;
     }
