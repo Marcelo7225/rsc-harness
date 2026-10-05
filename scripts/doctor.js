@@ -256,14 +256,36 @@ export function doctor({ target, home, cwd }) {
     missingCommands,
     commandOrphans,
     commandCollisions: state.commandCollisions || [],
+    // #289 — OpenCode 2.x only loads a plugin from a default export with an id and setup(ctx); the
+    // V1-only files older versions wrote fail to load and nothing on rsc's side noticed. A plugin
+    // without the V2 entry point is a problem, and `sync` rewrites it.
+    opencodePluginsOutdated: target === 'opencode' ? opencodePluginsOutdated(root) : [],
   };
   // #277 — the three "missing" lists share one shape, { id, path, action }, so whoever builds on top
   // of doctor reads them the same way; and `healthy` is what the exit code says.
   for (const [id, e] of Object.entries(state.skills)) {
     for (const f of e.files) if (!existsSync(f)) report.missing.push({ id, path: f, action: 'Run `npx @ericrisco/rsc sync` to restore this managed skill.' });
   }
-  report.healthy = report.hookWired && !report.missing.length && !missingAgents.length && !missingCommands.length;
+  report.healthy = report.hookWired && !report.missing.length && !missingAgents.length && !missingCommands.length
+    && !report.opencodePluginsOutdated.length;
   return report;
+}
+
+/** rsc's OpenCode plugins that OpenCode 2.x cannot load (no default export with id + setup). */
+export function opencodePluginsOutdated(root) {
+  const dir = join(root, '.opencode', 'plugins');
+  const out = [];
+  for (const name of ['rsc-update.js', 'rsc-knowledge.js', 'rsc-memory.js']) {
+    const path = join(dir, name);
+    if (!existsSync(path)) continue;
+    let body = '';
+    try { body = readFileSync(path, 'utf8'); } catch { continue; }
+    if (!/:managed/.test(body)) continue; // hand-written: not ours to judge
+    if (!/export default\s*\{/.test(body) || !/\bsetup\s*\(/.test(body)) {
+      out.push({ path, action: 'OpenCode 2.x cannot load this plugin (V1 API only). Run `npx @ericrisco/rsc@latest sync` to rewrite it.' });
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------------------
