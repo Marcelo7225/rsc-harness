@@ -41,7 +41,7 @@ const FILES = Object.freeze({
 });
 
 const git = (cwd, args) => {
-  try { return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; }
+  try { return execFileSync('git', args, { windowsHide: true, cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; }
 };
 const rel = (cwd, path) => relative(cwd, path).split(sep).join('/');
 

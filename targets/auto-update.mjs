@@ -11,7 +11,7 @@
 //     `node .rsc/auto-update.mjs` on its first turn, and to relay what it prints.
 import { readFileSync, existsSync, writeFileSync, openSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Update check: compare the installed version (.rsc/.version, written at install)
@@ -86,12 +86,21 @@ function launchUpdate(root, version, env) {
   const targets = declaredTargets(root);
   const args = [...base.slice(1), 'sync', ...(targets.length ? ['--target', targets.join(',')] : [])];
   const log = openSync(logFile(root), 'w');
-  const child = spawn(base[0], args, {
+  // #293 — on Windows npx is npx.cmd, which Node only starts through a shell, and a shell is one more
+  // console that can flash. So npx runs as what it is, a script of the npm that ships with Node,
+  // started by node itself. Only when that script cannot be found (a runtime that is not Node, e.g.
+  // OpenCode's Bun) does it fall back to the shell — still hidden.
+  const npxCli = !env.RSC_AUTO_UPDATE_CMD && process.platform === 'win32' && !process.versions.bun
+    ? [join(dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npx-cli.js')].find((p) => existsSync(p))
+    : null;
+  const [command, argv] = npxCli ? [process.execPath, [npxCli, ...args]] : [base[0], args];
+  const viaShell = !npxCli && process.platform === 'win32';
+  const child = spawn(command, argv, {
     cwd: root,
     detached: true,
     stdio: ['ignore', log, log],
     windowsHide: true,
-    shell: process.platform === 'win32', // npx is npx.cmd there; every argument was validated above
+    shell: viaShell, // fallback only (see above); every argument was validated above
     env: { ...env, RSC_NO_UPDATE_CHECK: '1', RSC_AUTO_UPDATE_TO: version },
   });
   child.on('error', () => {});

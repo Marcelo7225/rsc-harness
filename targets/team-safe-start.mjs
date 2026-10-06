@@ -16,7 +16,7 @@ import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, join, sep } from 'node:path';
 
 const git = (root, args) => {
-  try { return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 8000 }).trim(); }
+  try { return execFileSync('git', args, { windowsHide: true, cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 8000 }).trim(); }
   catch { return null; }
 };
 const ok = (root, args) => git(root, args) !== null;
