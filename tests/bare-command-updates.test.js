@@ -16,7 +16,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = join(ROOT, 'scripts', 'rsc.js');
 const VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version;
 const ARGS = ['--technical-level', 'non-technical', '--accompaniment', 'L2', '--project-kind', 'software',
-  '--software-scope', 'growing', '--goal', 'prueba', '--target', 'claude'];
+  '--software-scope', 'growing', '--workflow', 'main', '--goal', 'prueba', '--target', 'claude'];
 const run = (cwd, args) => spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', input: '' });
 
 function equippedButStale() {

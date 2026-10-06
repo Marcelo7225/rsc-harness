@@ -42,7 +42,7 @@ if (['--version', '-v', 'version'].includes(rawArgv[0])) {
 // `--accompaniment` stays listed although the dial is retired: old scripts and agents still pass it,
 // and its value must keep being skipped rather than read as a command or a skill id.
 const GLOBAL_VALUE_FLAGS = new Set([
-  '--target', '--technical-level', '--accompaniment', '--project-kind', '--goal', '--goal-base64', '--software-scope', '--accept-plan',
+  '--target', '--technical-level', '--accompaniment', '--project-kind', '--goal', '--goal-base64', '--software-scope', '--workflow', '--accept-plan',
 ]);
 const COMMANDS = new Set(['onboard', 'reassess', 'add', 'install', 'consult', 'catalog', 'audit', 'list', 'doctor', 'memory', 'knowledge-sync', 'git-permissions', 'main', 'isolation', 'sync', 'backups', 'restore', 'upgrade', 'registry', 'worktrees', 'capabilities', 'sello', 'repair', 'uninstall', 'purge']);
 function positionalTokens(input) {
@@ -84,6 +84,7 @@ function onboardingInput(targets) {
     projectKind: value('project-kind'),
     goal: value('goal') || (value('goal-base64') ? decodeGoal(value('goal-base64')) : undefined),
     softwareScope: value('software-scope'),
+    workflow: value('workflow'),
     targets,
   };
 }
@@ -93,7 +94,17 @@ function onboardingRequired(raw, action = 'onboard') {
     code: 'RSC_ONBOARDING_REQUIRED',
     schemaVersion: 1,
     missing: missingOnboardingFields(raw),
-    recovery: `Run npx @ericrisco/rsc@latest ${action} --technical-level <non-technical|mixed|technical> --project-kind <software|operations|research|content|mixed> --goal "<what you want>" --target <assistant>`,
+    recovery: `Run npx @ericrisco/rsc@latest ${action} --technical-level <non-technical|mixed|technical> --project-kind <software|operations|research|content|mixed> --goal "<what you want>" --target <assistant> (software or mixed also: --software-scope <small|growing|complex> --workflow <main|branches>)`,
+    // Each value is the person's own answer, asked as a question. Never infer one from the code or
+    // from a nearby answer: a field test mapped «mixto» to technical and «growing» to small.
+    ask: {
+      'technical-level': 'Technical terms, or plain words with analogies? (non-technical | mixed | technical)',
+      'project-kind': 'What is this project? (software | operations | research | content | mixed)',
+      goal: 'What do you want this project to achieve?',
+      'software-scope': 'How much software work is expected? (small | growing | complex)',
+      workflow: 'Code changes: straight on main, or on branches closed with a pull request? (main | branches — recommended: branches only for complex, long-lived code)',
+      target: 'Which assistants? (claude, codex, gemini, cursor, opencode, …)',
+    },
   };
   console.error(`RSC_ONBOARDING_REQUIRED ${JSON.stringify(payload)}`);
   process.exitCode = 2;
@@ -135,6 +146,10 @@ function renderPlan(plan, planId) {
   say('RSC_ONBOARDING_PLAN');
   say(`Plan id: ${planId}`);
   say(`Project: ${plan.record.projectKind}${plan.record.softwareScope ? ` (${plan.record.softwareScope})` : ''}`);
+  say(`Technical level: ${plan.record.technicalLevel}`);
+  say(`Workflow: ${plan.record.workflow === 'branches' ? 'branches + pull request (the default branch is closed for the agent; it asks before each code change where it goes)' : 'straight on the default branch (no branch questions)'}`);
+  if (plan.record.softwareScope) say('AGENT: ask the person «¿Los cambios de código van directos a main, o con ramas y pull request?» (main | branches; branches is for long-lived, complex code). If their answer differs from the line above, generate the plan again with --workflow <answer>.');
+  say('AGENT: before accepting, read these values back to the person and check each one is what they answered.');
   say(`Targets: ${plan.policy.targets.join(', ')}`);
   say('Selected:');
   for (const decision of plan.decisions.filter((d) => d.state === 'selected')) say(`  + ${decision.kind}/${decision.id} — ${decision.reason}`);
@@ -157,6 +172,7 @@ function renderPlan(plan, planId) {
     `--project-kind ${plan.record.projectKind}`,
     `--goal-base64 ${encodeGoal(plan.record.goal)}`,
     ...(plan.record.softwareScope ? [`--software-scope ${plan.record.softwareScope}`] : []),
+    ...(plan.record.workflow ? [`--workflow ${plan.record.workflow}`] : []),
     `--target ${plan.record.targets.join(',')}`,
     `--accept-plan ${planId}`,
   ];
@@ -188,6 +204,14 @@ async function runOnboarding(targets) {
         { key: 'growing', label: 'Growing — several related features or integrations' },
         { key: 'complex', label: 'Complex — multiple systems, teams or critical behavior' },
       ]);
+    }
+    if ((raw.projectKind === 'software' || raw.projectKind === 'mixed') && !raw.workflow) {
+      const branchesFirst = raw.softwareScope === 'complex';
+      const options = [
+        { key: 'main', label: 'Straight on main — research, content, scripts, simple projects' },
+        { key: 'branches', label: 'Branches + pull request — long-lived, complex code' },
+      ];
+      raw.workflow = await select('How should code changes land?', branchesFirst ? options.reverse() : options);
     }
     if (!raw.targets?.length) raw.targets = await selectAgents();
     if (!raw.technicalLevel || !raw.projectKind || !raw.goal || !raw.targets?.length) {
@@ -288,6 +312,7 @@ function runReassessment() {
     `--project-kind ${record.projectKind}`,
     `--goal-base64 ${encodeGoal(record.goal)}`,
     ...(record.softwareScope ? [`--software-scope ${record.softwareScope}`] : []),
+    ...(record.workflow ? [`--workflow ${record.workflow}`] : []),
     `--target ${record.targets.join(',')}`,
   ].join(' '));
   say('Show the new plan and ask the user to accept its id before applying it.');
@@ -784,11 +809,17 @@ async function main() {
         mkdirSync(join(root, '.rsc'), { recursive: true });
         if (sub === OFF) writeFileSync(marker, '');
         else rmSync(marker, { force: true });
+        // main: lock and unlock are the two answers to «main or branches?», so each clears the other.
+        // A lock is a decision, not a return to guessing: closed even where nothing looks complex.
+        if (isMain) {
+          const lock = join(root, '.rsc', '.no-trunk-open');
+          if (sub === ON) writeFileSync(lock, ''); else rmSync(lock, { force: true });
+        }
         for (const t of targets) await syncInstalled({ target: t, cwd: root });
         say(isMain
           ? (sub === OFF
             ? 'rsc main unlock: the agent may now work on the default branch in this project. Commit .rsc.json so the team gets the same decision.'
-            : 'rsc main lock: the default branch is closed for the agent again where the project looks complex or in production. Commit .rsc.json so the team gets the same decision.')
+            : 'rsc main lock: branches and pull requests for this project — the default branch is closed for the agent, and it asks before each code change where it goes. Commit .rsc.json so the team gets the same decision.')
           : (sub === OFF
             ? 'rsc isolation off: sessions may share this folder without a worktree. Commit .rsc.json so the team gets the same decision.'
             : 'rsc isolation on: with another session active in this folder, new work goes to .worktrees/<branch>/. Commit .rsc.json so the team gets the same decision.'));

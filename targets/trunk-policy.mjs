@@ -16,6 +16,8 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 export const UNLOCK = '.no-trunk-guard';
+/** «ramas y PR», chosen at install or with `rsc main lock`: closed whatever the signals say. */
+export const LOCK = '.no-trunk-open';
 
 const CI = ['.github/workflows', '.gitlab-ci.yml', '.circleci', 'azure-pipelines.yml', 'Jenkinsfile',
   'bitbucket-pipelines.yml', '.buildkite', '.travis.yml', '.woodpecker.yml', '.drone.yml'];
@@ -59,11 +61,26 @@ export function defaultBranchName(root) {
   return null;
 }
 
-/** `{ closed, reason, signals }` — reason: 'unlocked' | 'simple' | 'signals'. */
+/** `{ closed, reason, signals }` — reason: 'unlocked' | 'locked' | 'simple' | 'signals'. */
 export function trunkPolicy(root) {
   if (existsSync(join(root, '.rsc', UNLOCK))) return { closed: false, reason: 'unlocked', signals: [] };
+  if (existsSync(join(root, '.rsc', LOCK))) return { closed: true, reason: 'locked', signals: ['ramas y PR, decidido para este proyecto'] };
   const signals = trunkSignals(root);
   return signals.length ? { closed: true, reason: 'signals', signals } : { closed: false, reason: 'simple', signals };
 }
 
 export const trunkClosed = (root) => trunkPolicy(root).closed;
+
+/**
+ * The branch rule for THIS project, said every turn (2026-10-06, Eric): where the default branch is
+ * open the agent works on it and never asks; where it is closed it asks before each code change —
+ * this branch, a new one, or unlocking — and never branches on its own.
+ */
+export function branchRuleLine(root) {
+  const trunk = defaultBranchName(root) || 'main';
+  const policy = trunkPolicy(root);
+  if (!policy.closed) return `- Here "${trunk}" is OPEN: code changes go straight on it. Do not ask about branches.\n`;
+  const here = git(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+  const options = here && here !== trunk ? `this branch ("${here}"), a new branch, or unlock "${trunk}"` : `a new branch, or unlock "${trunk}"`;
+  return `- Here "${trunk}" is CLOSED (${policy.signals.join(', ')}): before EACH code change ask: ${options}? Never choose alone.\n`;
+}

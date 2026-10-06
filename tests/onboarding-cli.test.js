@@ -130,7 +130,7 @@ test('operations on Claude keeps SessionStart but omits feature, ship and gitmoj
 
 test('re-onboarding from software to operations unwires previously installed code hooks', () => {
   const cwd = fresh();
-  const software = ['--technical-level', 'mixed', '--accompaniment', 'L1', '--project-kind', 'software', '--software-scope', 'growing', '--goal', 'Build product', '--target', 'claude'];
+  const software = ['--technical-level', 'mixed', '--accompaniment', 'L1', '--project-kind', 'software', '--software-scope', 'growing', '--workflow', 'main', '--goal', 'Build product', '--target', 'claude'];
   let preview = run(cwd, ['onboard', ...software]);
   let id = preview.stdout.match(/Plan id: ([a-f0-9]{64})/)?.[1];
   assert.equal(run(cwd, ['onboard', ...software, '--accept-plan', id]).status, 0);
@@ -169,7 +169,7 @@ test('reassess stays quiet until deferred evidence changes, then requires a new 
   const cwd = fresh();
   const software = [
     '--technical-level', 'mixed', '--accompaniment', 'L1', '--project-kind', 'software',
-    '--software-scope', 'small', '--goal', 'Build one calculator', '--target', 'codex',
+    '--software-scope', 'small', '--workflow', 'main', '--goal', 'Build one calculator', '--target', 'codex',
   ];
   const preview = run(cwd, ['onboard', ...software]);
   const id = preview.stdout.match(/Plan id: ([a-f0-9]{64})/)?.[1];
@@ -194,7 +194,7 @@ test('reassess stays quiet until deferred evidence changes, then requires a new 
 
 const sddComplete = [
   '--technical-level', 'mixed', '--accompaniment', 'L1', '--project-kind', 'software',
-  '--software-scope', 'complex', '--goal', 'Build a substantial product', '--target', 'codex',
+  '--software-scope', 'complex', '--workflow', 'main', '--goal', 'Build a substantial product', '--target', 'codex',
 ];
 const onboardWithSdd = (cwd) => {
   const preview = run(cwd, ['onboard', ...sddComplete]);

@@ -48,7 +48,7 @@ const GOAL = 'backend python y frontend react';
 function onboard(cwd, args) {
   return execFileSync(process.execPath, [CLI, 'onboard',
     '--technical-level', 'non-technical', '--accompaniment', 'L3',
-    '--project-kind', 'software', '--software-scope', 'growing', ...args], { cwd, encoding: 'utf8' });
+    '--project-kind', 'software', '--software-scope', 'growing', '--workflow', 'main', ...args], { cwd, encoding: 'utf8' });
 }
 
 test('a real onboarding including an agentless target completes', { timeout: 300000 }, () => {

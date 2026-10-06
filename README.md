@@ -70,7 +70,7 @@ rsc 3.0 fixes all four, by default, with no new commands to learn:
 
 | | What happens | Turn it off |
 | --- | --- | --- |
-| **You decide where each change goes** | Before every change that writes code, the agent asks: a new branch, or straight on `main`? It never opens a branch on its own. In a project that is complex or in production (CI, a deployment, several people), a commit on `main` is refused, and the agent asks whether to open a branch or unlock `main`. | Say **«unlock main»**, or `rsc main unlock` |
+| **You choose how the project works** | The install asks once: straight on `main`, or branches and pull requests? Branches are recommended only for long-lived, complex code. With `main` the agent works on it and never asks about branches. With branches a commit on `main` is refused, and before each code change the agent asks: this branch, a new one, or unlock `main`? It never opens a branch on its own. | Say **«unlock main»** / **«lock main»**, or `rsc main unlock` / `lock` |
 | **One workspace per agent** | If another assistant session is working in the same folder, new work goes to a worktree under `.worktrees/<branch>/`. It stays inside the project, is never committed, and is removed once that branch is merged. | `rsc isolation off` |
 | **The agent picks the method** | A simple change takes Fast-Track (one document, proof for every task). Something big or complex takes the spec-driven chain. The agent decides and says why. You still approve *what* gets built: the spec and the clarifications, then step by step or autopilot. | Ask for the other lane |
 | **Knowledge reaches everyone** | `01-TOOLS/` and `02-DOCS/` travel through one exchange branch, `rsc/knowledge`. They go up when your turn ends and come down into whatever branch each person is on. They reach `main` inside your normal pull requests. | `rsc knowledge-sync off` |
@@ -100,7 +100,8 @@ rsc git-permissions on       # turn it on, also for a project adopted before
 what anyone can check: a CI setup, a deployment file (`Dockerfile`, `vercel.json`, `fly.toml`…) or
 at least two people in the last 50 commits. If any of those is there, a commit on the default branch
 is refused before it runs, and the agent asks you whether to open a branch or unlock it. If none is,
-`main` is open, and the agent still asks before each change whether you want a branch. If the hook gets it wrong and the project really is simple, «unlock main» opens it for
+`main` is open and the agent simply works on it. **The answer you gave at install always wins over
+this detection**; it only decides for projects installed before the question existed. If the hook gets it wrong and the project really is simple, «unlock main» opens it for
 the project. That decision is saved in `.rsc.json`, so the whole team gets it.
 
 Every refusal says how to carry on, and the choice between a branch and unlocking goes back to you.

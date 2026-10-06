@@ -58,7 +58,7 @@ test('the committed clone bootstrap reads retired ids as their successors (it ca
 // ── fixtures: a harness with the shape an older version left behind ──────────────────────────
 
 const ARGS = ['onboard', '--target', 'claude', '--technical-level', 'technical', '--accompaniment', 'L1',
-  '--project-kind', 'software', '--software-scope', 'complex', '--goal', 'Una API de facturación'];
+  '--project-kind', 'software', '--software-scope', 'complex', '--workflow', 'main', '--goal', 'Una API de facturación'];
 function built(targets = 'claude') {
   // Real path: the CLI records absolute paths from process.cwd(), which resolves /var → /private/var
   // on macOS, and the fixture must write state in the same spelling the CLI does.

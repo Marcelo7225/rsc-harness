@@ -97,8 +97,8 @@ Classify this turn before acting, and name the lane in one line.
 - Authorises a change? YOU pick the lane, say it and why: simple -> FTD (one
   feature document, tasks checked off against observed proof); big or
   interlocking decisions -> SDD (spec + clarify approved, then autopilot or not).
-- Code change? Ask first, every time: a branch or the default branch? Never
-  branch on your own. Another session here: .worktrees/<branch>.
+- Code change: the line below says where it goes in this project. Never open
+  a branch on your own. Another session here: .worktrees/<branch>.
 Method: \`ftd\` · chain: \`sdd\` · full decisor in the always-on \`suggest\` body.
 =================================================
 `;

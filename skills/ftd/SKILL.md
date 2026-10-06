@@ -53,13 +53,16 @@ the chain: a result asserted without evidence is treated as not done.
 
 ## Isolation
 
-Where the work runs is the person's call, asked change by change — never a branch opened on your own:
+Where the work runs follows the project's decision (asked at install: «main» or «ramas y PR»; rsc
+says which on every turn) — never a branch opened on your own:
 
-- **Before each change that writes code**, ask in one line: «¿Lo hago en una rama nueva o directamente
-  en `<default branch>`?». A branch is named by intent and closes with a pull request.
-- **Default branch closed for the agent** (rsc refuses the commit there: CI, a deployment or several
-  people committing) → ask: «¿Abro una rama o desbloqueo `<default branch>`?». Unlocking is
-  `rsc main unlock`, a project decision; never run it without that answer.
+- **Default branch open** (research, content, scripts, simple projects) → work straight on it. Do not
+  ask about branches.
+- **Default branch closed for the agent** (long-lived code: «ramas y PR» chosen at install, CI, a
+  deployment or several people) → before EACH change that writes code, ask in one line: «¿Lo hago en
+  esta rama (`<current>`), en una nueva, o desbloqueo `<default branch>`?». Already on another branch
+  is no exception: an unrelated change does not go into it without asking. A new branch is named by
+  intent and closes with a pull request. Unlocking is `rsc main unlock`; never without that answer.
 - **Docs, wiki or config only** → no question, no branch.
 - **Another session working in this same folder** → a worktree in `.worktrees/<branch>/`, never a
   branch switch under the other session. Not a question: rsc tells you when that is the case.

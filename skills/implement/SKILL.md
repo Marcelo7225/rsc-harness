@@ -45,9 +45,9 @@ back — you do not write feature code anyway.
 4. **Read the register.** Open `02-DOCS/wiki/harness/user-profile.md` and read `technical_level`.
    It picks technical terms or plain words with analogies at each checkpoint (see "Checkpoints"
    below). No profile yet → use analogies, and ask before any irreversible step.
-5. **Confirm isolation.** On `main`/`master`, stop before the first commit and ask the person: a
-   feature branch, or straight on the default branch (`worktrees`)? Never branch on your own; another
-   session in this folder makes the worktree mandatory.
+5. **Confirm isolation.** Default branch open for this project → work on it. Closed → stop before
+   the first commit and ask: this branch, a new one, or unlock (`worktrees`)? Never branch on your
+   own; another session in this folder makes the worktree mandatory.
 6. **Scan the tasks for independence.** Mark which tasks share files/state and which are disjoint.
    Disjoint clusters are candidates for `parallel`; everything else runs in order.
 

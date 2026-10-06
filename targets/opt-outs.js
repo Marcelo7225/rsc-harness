@@ -26,6 +26,7 @@ export const PROJECT_OPT_OUTS = [
   'knowledge-sync',   // 01-TOOLS/ + 02-DOCS/ sync: one person off and the team stops seeing their work
   'ship-guard',       // branch/trunk discipline
   'trunk-guard',      // «desbloquea main»: the default branch open for the agent, for the whole team
+  'trunk-open',       // «ramas y PR» chosen at install / `rsc main lock`: closed even with nothing that looks complex
   'worktree-cleanup', // the reaper's notice (it only ever names, never acts)
   'worktree-isolation', // «no uses worktrees»: same-folder sessions allowed to share a checkout
 ];
