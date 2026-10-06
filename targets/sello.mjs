@@ -103,7 +103,7 @@ export function isEnabled(root) {
 // The CLI can run from any subdirectory; the guard always runs from the project
 // root. Both must compute the same candidate, so both resolve to the git toplevel.
 export function resolveRoot(root) {
-  const r = spawnSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
+  const r = spawnSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { windowsHide: true, encoding: 'utf8' });
   return r.status === 0 ? (r.stdout || '').trim() || root : root;
 }
 
@@ -211,7 +211,7 @@ export function lensesRequired(tier, cfg = null) {
 // name matches no file on disk, so the file would hash as deleted and any later
 // mutation of it would sail through the gate. -z gives raw NUL-separated paths.
 function git(root, ...args) {
-  const r = spawnSync('git', ['-C', root, '-c', 'core.quotePath=false', ...args], {
+  const r = spawnSync('git', ['-C', root, '-c', 'core.quotePath=false', ...args], { windowsHide: true,
     encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
   });
   return r.status === 0 ? (r.stdout || '') : null;

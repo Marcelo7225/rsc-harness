@@ -72,7 +72,7 @@ function git(cwd, args) {
   // 64 MiB, because node's 1 MiB default kills git mid-write on any worktree with a few thousand
   // stray files and hands back a truncated-but-successful-looking result. Measured: in the 1.0-1.15 MB
   // band the same unchanged worktree flipped between verdicts across runs.
-  const r = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync('git', ['-C', cwd, ...args], { windowsHide: true, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
   // `raw` matters for porcelain output: its leading space is a status code, not padding, and
   // trimming it shifted every path by one character — so the message naming the file about to be
   // lost named a file that does not exist. A refusal has to be true to be actionable (P6).

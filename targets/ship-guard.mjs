@@ -67,7 +67,7 @@ const MERGE = /\bgit\s+merge\b/;
 if (!TRUNK.test(command) && !MERGE.test(command)) allow();
 
 const git = (...args) => {
-  const r = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+  const r = spawnSync('git', ['-C', root, ...args], { windowsHide: true, encoding: 'utf8' });
   return r.status === 0 ? (r.stdout || '').trim() : null;
 };
 

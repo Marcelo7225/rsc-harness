@@ -48,7 +48,7 @@ function cleanId(value, prefix = 'session') {
 
 function git(cwd, args) {
   try {
-    return { ok: true, out: execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 2 * 1024 * 1024 }).trim() };
+    return { ok: true, out: execFileSync('git', args, { windowsHide: true, cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], maxBuffer: 2 * 1024 * 1024 }).trim() };
   } catch {
     return { ok: false, out: '' };
   }

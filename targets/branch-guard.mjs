@@ -45,7 +45,7 @@ export function effectiveDir(command, base) {
 }
 
 const gitAt = (dir) => (...args) => {
-  const r = spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8' });
+  const r = spawnSync('git', ['-C', dir, ...args], { windowsHide: true, encoding: 'utf8' });
   return r.status === 0 ? (r.stdout || '').trim() : null;
 };
 

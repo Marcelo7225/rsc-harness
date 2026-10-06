@@ -65,6 +65,7 @@ export const isKnowledge = (path) => KNOWLEDGE.some((k) => path.startsWith(k)) &
 function run(root, args, { timeout = LOCAL_TIMEOUT_MS, input, env } = {}) {
   try {
     const out = execFileSync('git', args, {
+      windowsHide: true,
       cwd: root, encoding: 'utf8', timeout, input, maxBuffer: 16 * 1024 * 1024,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C', ...env },
