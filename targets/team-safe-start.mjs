@@ -101,9 +101,9 @@ export function teamSafeAnnouncement(root) {
     return `
 ===== rsc 3.0 · equipo seguro por defecto =====
 ACTION: díselo a la persona en pocas líneas, una vez, antes de su petición:
-1. Antes de cada cambio de código, el agente pregunta: ¿rama nueva o directamente en la principal?
-   Nunca abre una rama por su cuenta. Si la principal está cerrada (CI, despliegue o equipo), pregunta
-   si abre una rama o la desbloquea («desbloquea main»).
+1. Si la rama principal está abierta (proyectos sencillos), el agente trabaja en ella sin preguntar.
+   Si está cerrada (código a largo plazo, CI o equipo), pregunta antes de cada cambio: ¿esta rama,
+   una nueva, o desbloquear? Nunca abre una rama por su cuenta. Cambiarlo: «desbloquea main» o «bloquea main».
 2. Si otra sesión de un asistente está trabajando en esta misma carpeta, el trabajo nuevo va a un
    worktree en .worktrees/<rama>/. Para no hacerlo: «no uses worktrees».
 3. El agente elige solo entre FTD (lo sencillo) y SDD (lo grande o complejo) y lo dice; se puede

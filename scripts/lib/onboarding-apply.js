@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { appendFileSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { applyInstall, pruneSharedBases, removeTargetInstall } from '../install-apply.js';
@@ -96,6 +96,7 @@ function recoveryCommand(plan, planId) {
     `--project-kind ${record.projectKind}`,
     `--goal-base64 ${encodeGoal(record.goal)}`,
     ...(record.softwareScope ? [`--software-scope ${record.softwareScope}`] : []),
+    ...(record.workflow ? [`--workflow ${record.workflow}`] : []),
     `--target ${record.targets.join(',')}`,
     `--accept-plan ${planId}`,
   ].join(' ');
@@ -226,6 +227,22 @@ export function verifyOnboarding(cwd, plan, planId) {
   return differences;
 }
 
+/**
+ * The install-time answer «main | branches» becomes the project's trunk decision, as the same two
+ * markers `rsc main unlock|lock` writes (both PROJECT opt-outs, recorded in .rsc.json by the install
+ * below, rebuilt in a clone): main → `.no-trunk-guard` (open), branches → `.no-trunk-open` (closed
+ * even where nothing in the project looks complex yet).
+ */
+export function applyWorkflowDecision(cwd, workflow) {
+  if (workflow !== 'main' && workflow !== 'branches') return;
+  const dir = join(cwd, '.rsc');
+  mkdirSync(dir, { recursive: true });
+  const open = join(dir, '.no-trunk-guard');
+  const closed = join(dir, '.no-trunk-open');
+  writeFileSync(workflow === 'main' ? open : closed, '');
+  rmSync(workflow === 'main' ? closed : open, { force: true });
+}
+
 export async function applyAcceptedOnboarding({ cwd = process.cwd(), plan, planId, now = new Date(), apply = applyInstall }) {
   if (identifyPlan(plan) !== planId) throw new Error('RSC_PLAN_CHANGED: regenerate the plan and ask the user to accept the new id');
   const previousManifest = readManifest(cwd);
@@ -259,6 +276,7 @@ export async function applyAcceptedOnboarding({ cwd = process.cwd(), plan, planI
     },
   };
   try {
+    applyWorkflowDecision(cwd, plan.record.workflow);
     for (const target of previousPlan?.policy?.targets || []) {
       if (!plan.policy.targets.includes(target)) removeTargetInstall({ cwd, target });
     }

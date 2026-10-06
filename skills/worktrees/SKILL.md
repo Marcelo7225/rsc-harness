@@ -27,12 +27,11 @@ constitution → specify → clarify → plan → tasks → analyze → [ worktr
 
 ## The one rule that defines this step
 
-**Never run `implement` on the default branch without asking.** The moment a plan is about to become
-commits, if `git rev-parse --abbrev-ref HEAD` says `main` or `master`, you stop and ask the person
-*first* — «¿rama nueva o directamente en `main`?» — before the first edit, not after the diff already
-exists. Never branch on your own; if rsc refuses commits there (closed default branch), the question
-is «¿abro una rama o desbloqueo `main`?». The one exception is another session in this folder: then
-the worktree is mandatory, not a question.
+**Never open a branch on your own; follow the project's decision.** Where the default branch is open
+(chosen at install, or nothing complex), `implement` runs on it. Where it is closed («ramas y PR»,
+CI, team), stop before the first edit and ask «¿esta rama, una nueva, o desbloqueo `main`?» — not
+after the diff already exists. The one exception is another session in this folder: then the
+worktree is mandatory, not a question.
 
 ## The decision: branch vs. worktree
 

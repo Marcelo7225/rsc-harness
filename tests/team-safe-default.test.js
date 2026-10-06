@@ -318,20 +318,38 @@ test('tsd40 · «desbloquea main» and «no uses worktrees» become project deci
   assert.equal(JSON.parse(cli('main', 'status')).reason, 'unlocked');
   cli('main', 'lock');
   cli('isolation', 'on');
-  assert.deepEqual(readManifest(r).optOuts, []);
+  // 2026-10-06: lock is the «ramas y PR» answer — a decision recorded for the team, not a return to guessing.
+  assert.deepEqual(readManifest(r).optOuts, ['trunk-open']);
+  assert.equal(JSON.parse(cli('main', 'status')).reason, 'locked');
   const settings = readFileSync(join(r, '.claude', 'settings.json'), 'utf8');
   assert.match(settings, /branch-guard\.mjs/, 'the guard is wired');
 });
 
-test('tsd18 · every text the agent reads says: ask before branching, never branch on your own (2026-10-06)', async () => {
+test('tsd18 · every text the agent reads: open default branch → no question; closed → ask each change (2026-10-06)', async () => {
   const { SDD_GATE_TEXT } = await import('../targets/hook-once.mjs');
   const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
-  assert.match(SDD_GATE_TEXT, /Ask first, every time: a branch or the default branch\? Never\s+branch on your own/);
-  assert.match(read('skills/suggest/SKILL.md'), /Before each change that writes code, ask: a branch, or straight on the default branch\? Never\s+branch on your own/);
+  assert.match(SDD_GATE_TEXT, /Never open\s+a branch on your own/);
+  const suggest = read('skills/suggest/SKILL.md');
+  assert.match(suggest, /open \(chosen at install, or nothing complex\) → work on it, no branch\s+question/);
+  assert.match(suggest, /before each code change ask: this branch, a new one, or\s+`rsc main unlock`\? Never branch alone/);
   const ftd = read('skills/ftd/SKILL.md');
-  assert.match(ftd, /never a branch opened on your own/);
-  assert.match(ftd, /¿Abro una rama o desbloqueo/);
-  assert.doesNotMatch(ftd, /Open it yourself/);
-  assert.match(read('skills/worktrees/SKILL.md'), /Never run `implement` on the default branch without asking/);
-  assert.match(read('skills/implement/SKILL.md'), /Never branch on your own/);
+  assert.match(ftd, /Do not\s+ask about branches/);
+  assert.match(ftd, /esta rama \(`<current>`\), en una nueva, o desbloqueo/);
+  assert.match(ftd, /Already on another branch\s+is no exception/);
+  assert.match(read('skills/worktrees/SKILL.md'), /Never open a branch on your own; follow the project's decision/);
+  assert.match(read('skills/implement/SKILL.md'), /Never branch on your\s+own/);
+});
+
+test('tsd19 · the per-turn rule names the state of THIS project, and the branch you are on', async () => {
+  const { branchRuleLine } = await import('../targets/trunk-policy.mjs');
+  const open = repo();
+  assert.match(branchRuleLine(open), /"main" is OPEN: code changes go straight on it\. Do not ask about branches/);
+  const closed = repo(); write(closed, '.rsc/.no-trunk-open', '');
+  assert.match(branchRuleLine(closed), /"main" is CLOSED \(ramas y PR, decidido para este proyecto\): before EACH code change ask: a new branch, or unlock "main"\?/);
+  git(closed, 'switch', '-q', '-c', 'feat/x');
+  assert.match(branchRuleLine(closed), /this branch \("feat\/x"\), a new branch, or unlock "main"/);
+  const ci = repo(); write(ci, '.github/workflows/ci.yml');
+  assert.match(branchRuleLine(ci), /CLOSED \(CI/);
+  write(ci, '.rsc/.no-trunk-guard', '');
+  assert.match(branchRuleLine(ci), /OPEN/, '«main» chosen at install wins over the signals');
 });

@@ -13,6 +13,8 @@ export const ONBOARDING_VALUES = Object.freeze({
   technicalLevel: ['non-technical', 'mixed', 'technical'],
   projectKind: ['software', 'operations', 'research', 'content', 'mixed'],
   softwareScope: ['small', 'growing', 'complex'],
+  // How code changes land: straight on the default branch, or on branches closed with a pull request.
+  workflow: ['main', 'branches'],
 });
 
 const ignored = new Set([
@@ -28,6 +30,9 @@ const oneOf = (field, value, values) => {
   if (!values.includes(value)) throw new Error(`invalid ${field}: expected ${values.join('|')}`);
   return value;
 };
+
+/** The workflow to recommend at install: branches + PR only for complex code. */
+export const recommendedWorkflow = (softwareScope) => (softwareScope === 'complex' ? 'branches' : 'main');
 
 export function normalizeOnboarding(raw = {}) {
   const schemaVersion = Number(raw.schemaVersion ?? ONBOARDING_SCHEMA_VERSION);
@@ -47,12 +52,18 @@ export function normalizeOnboarding(raw = {}) {
   const needsScope = projectKind === 'software' || projectKind === 'mixed';
   const softwareScope = clean(raw.softwareScope).toLowerCase();
   if (needsScope) oneOf('software-scope', softwareScope, ONBOARDING_VALUES.softwareScope);
+  // Asked at install (2026-10-06, Eric): branches and PRs are for long-lived, complex code; research,
+  // content and simple scripts work on the default branch. Absent → the recommendation for the scope.
+  const workflow = needsScope
+    ? (clean(raw.workflow) ? oneOf('workflow', clean(raw.workflow).toLowerCase(), ONBOARDING_VALUES.workflow) : recommendedWorkflow(softwareScope))
+    : 'main';
   return {
     schemaVersion,
     technicalLevel,
     projectKind,
     goal,
     ...(needsScope ? { softwareScope } : {}),
+    workflow,
     targets,
   };
 }
@@ -296,6 +307,8 @@ export function buildOnboardingPlan(record, evidence) {
     '02-DOCS/wiki/harness/decisions.md',
     '02-DOCS/wiki/harness/installation-plan.md',
     '.rsc/.no-context7',
+    // The install-time workflow answer (applyWorkflowDecision): the one marker it writes.
+    ...(normalized.workflow === 'branches' ? ['.rsc/.no-trunk-open'] : normalized.workflow === 'main' ? ['.rsc/.no-trunk-guard'] : []),
     ...normalized.targets.flatMap((target) => managedPathsForInstall({ skillIds: skills, target, cwd: root, policy })
       .map((path) => relative(root, path).split(sep).join('/'))),
   ])].sort() : ['.rsc.json', '.rsc/', '02-DOCS/wiki/harness/'];

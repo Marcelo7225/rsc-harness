@@ -28,4 +28,11 @@ const hook = readHookInput();
 const turnKey = hook.prompt_id || (hook.prompt ? `p${hook.prompt.length}:${hook.prompt.slice(0, 64)}` : null);
 if (hook.session_id && turnKey && !claimOnce(`up:${hook.session_id}:${turnKey}`)) process.exit(0);
 
-process.stdout.write(SDD_GATE_TEXT);
+// The branch rule depends on THIS project (open or closed default branch), so it is computed here and
+// said right after the gate. trunk-policy.mjs is a sibling under .rsc/; without it, the safe default.
+let rule = '- Default branch state unknown: ask before a code change where it goes.\n';
+try {
+  const { branchRuleLine } = await import(new URL('./trunk-policy.mjs', import.meta.url));
+  rule = branchRuleLine(root);
+} catch { /* fail-open */ }
+process.stdout.write(SDD_GATE_TEXT + rule);

@@ -23,7 +23,7 @@ function onboarded({ level, kind }) {
   execFileSync('git', ['init', '-q'], { cwd });
   writeFileSync(join(cwd, 'app.py'), 'x = 1\n');
   const args = ['onboard', '--target', 'claude', '--technical-level', level, '--accompaniment', 'L3',
-    '--project-kind', kind, '--software-scope', 'growing', '--goal', 'Llevar la facturación'];
+    '--project-kind', kind, '--software-scope', 'growing', '--workflow', 'main', '--goal', 'Llevar la facturación'];
   const planId = /--accept-plan ([a-f0-9]{64})/.exec(run(cwd, args).stdout)?.[1];
   assert.ok(planId, 'fixture: a plan to accept');
   run(cwd, [...args, '--accept-plan', planId]);

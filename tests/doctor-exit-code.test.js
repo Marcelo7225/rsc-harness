@@ -15,7 +15,7 @@ import { targetPaths } from '../targets/index.js';
 const CLI = join(dirname(fileURLToPath(import.meta.url)), '..', 'scripts', 'rsc.js');
 const run = (cwd, args) => spawnSync(process.execPath, [CLI, ...args], { cwd, encoding: 'utf8', input: '' });
 const ARGS = ['onboard', '--target', 'claude', '--technical-level', 'technical', '--accompaniment', 'L1',
-  '--project-kind', 'software', '--software-scope', 'complex', '--goal', 'Una API de facturación'];
+  '--project-kind', 'software', '--software-scope', 'complex', '--workflow', 'main', '--goal', 'Una API de facturación'];
 function built() {
   const cwd = mkdtempSync(join(tmpdir(), 'rsc-doc-'));
   execFileSync('git', ['init', '-q'], { cwd });
