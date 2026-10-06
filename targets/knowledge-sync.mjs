@@ -104,7 +104,7 @@ const worktreeBlob = (root, path) => (existsSync(join(root, path)) ? line(root, 
 function readState(root) {
   let s = {};
   try { s = JSON.parse(readFileSync(join(root, '.rsc', STATE), 'utf8')); } catch { /* first run */ }
-  return { announced: false, seen: null, queue: [], ours: [], notices: [], lastFetch: 0, snap: null, head: null, ...s };
+  return { announced: false, seenBy: {}, queue: [], ours: [], notices: [], lastFetch: 0, snap: null, head: null, ...s };
 }
 
 function writeState(root, s) {
@@ -375,30 +375,35 @@ export function applyIncoming(root, s) {
   if (!branch || branch === 'HEAD') return said;
   const tip = line(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${KNOWLEDGE_BRANCH}`]);
   if (!tip) return said;
-  if (!s.seen || !line(root, ['rev-parse', '--verify', '--quiet', `${s.seen}^{commit}`])) {
-    s.seen = line(root, ['merge-base', 'HEAD', tip]) || tip;
+  // Per branch, not per repo: a branch opened from main after the last sync starts behind what
+  // rsc/knowledge already has, and a single "last seen" made it look up to date (2026-10-06). A branch
+  // seen for the first time catches up from where it left rsc/knowledge.
+  s.seenBy = s.seenBy && typeof s.seenBy === 'object' ? s.seenBy : {};
+  let seen = s.seenBy[branch];
+  if (!seen || !line(root, ['rev-parse', '--verify', '--quiet', `${seen}^{commit}`])) {
+    seen = line(root, ['merge-base', 'HEAD', tip]) || tip;
   }
-  if (s.seen === tip) return said;
+  if (seen === tip) { s.seenBy[branch] = tip; return said; }
   const paths = [...KNOWLEDGE];
-  const theirs = git(root, ['rev-list', `${s.seen}..${tip}`, '--', ...paths]).split('\n').filter(Boolean)
-    .filter((c) => !s.ours.includes(c));
-  if (!theirs.length) { s.seen = tip; return said; }
+  const commits = git(root, ['rev-list', `${seen}..${tip}`, '--', ...paths]).split('\n').filter(Boolean);
+  if (!commits.length) { s.seenBy[branch] = tip; return said; }
 
-  const know = zlist(git(root, ['diff', '--name-only', '--no-renames', '-z', s.seen, tip, '--', ...paths]))
+  const know = zlist(git(root, ['diff', '--name-only', '--no-renames', '-z', seen, tip, '--', ...paths]))
     .filter(isKnowledge).slice(0, MAX_FILES);
-  const who = authorsOf(root, theirs);
   const closed = branch === defaultBranch(root) && trunkClosed(root);
+  const touchedBy = (f) => git(root, ['rev-list', `${seen}..${tip}`, '--', f]).split('\n').filter(Boolean);
   const take = [];
   const clash = [];
   for (const f of know) {
     const incoming = blob(root, tip, f);
     const mine = worktreeBlob(root, f);
     if (mine === incoming) continue;
-    const base = blob(root, s.seen, f);
+    const base = blob(root, seen, f);
     // On a closed trunk HEAD lags behind on purpose (what came in was not committed), so only the
     // working tree says whether you touched it (review H2).
     if (mine === base && (closed || blob(root, 'HEAD', f) === base)) take.push(f);
-    else clash.push(f);
+    // Touched here and changed only by your own uploads: your newer version, not a clash.
+    else if (touchedBy(f).some((c) => !s.ours.includes(c))) clash.push(f);
   }
 
   if (take.length) {
@@ -414,12 +419,16 @@ export function applyIncoming(root, s) {
     } else {
       git(root, ['--literal-pathspecs', 'reset', '--quiet', '--', ...take]); // updated, not staged
     }
-    said.push(`📥 Traídos ${theirs.length} cambio(s) de conocimiento de ${who}: ${listed(take)}.`);
+    const from = [...new Set(take.flatMap(touchedBy))];
+    const theirs = from.filter((c) => !s.ours.includes(c));
+    const who = theirs.length ? authorsOf(root, theirs) : 'ti, desde otra rama';
+    said.push(`📥 Traídos ${from.length} cambio(s) de conocimiento de ${who}: ${listed(take)}.`);
   }
   if (clash.length) {
+    const who = authorsOf(root, [...new Set(clash.flatMap(touchedBy))].filter((c) => !s.ours.includes(c)));
     said.push(`${who} cambió ${listed(clash)}, que tú también has tocado. No lo traigo solo: tu versión sigue intacta.`);
   }
-  s.seen = tip;
+  s.seenBy[branch] = tip;
   return said;
 }
 

@@ -27,11 +27,12 @@ constitution → specify → clarify → plan → tasks → analyze → [ worktr
 
 ## The one rule that defines this step
 
-**Never run `implement` on the default branch.** The moment a plan is about to become commits, the
-work belongs in isolation. If `git rev-parse --abbrev-ref HEAD` says `main` or `master`, you stop
-and create the isolated workspace *first* — before the first edit, not after the diff already exists
-on the wrong branch. Recovering a half-built feature off `main` is strictly more expensive than
-branching one command earlier.
+**Never run `implement` on the default branch without asking.** The moment a plan is about to become
+commits, if `git rev-parse --abbrev-ref HEAD` says `main` or `master`, you stop and ask the person
+*first* — «¿rama nueva o directamente en `main`?» — before the first edit, not after the diff already
+exists. Never branch on your own; if rsc refuses commits there (closed default branch), the question
+is «¿abro una rama o desbloqueo `main`?». The one exception is another session in this folder: then
+the worktree is mandatory, not a question.
 
 ## The decision: branch vs. worktree
 
