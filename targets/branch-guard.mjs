@@ -152,14 +152,16 @@ async function othersHere({ root, here, sessionId, self }) {
 }
 
 async function trunkDenial({ root, here, sessionId, self, trunk, policy }) {
-  // Where the branch goes depends on rule B: alone → this same folder; with company → .worktrees/.
+  // Where a branch would go depends on rule B: alone → this same folder; with company → .worktrees/.
+  // Whether to branch at all is the person's call: the agent asks, it never branches on its own.
   const others = existsSync(join(root, '.rsc', '.no-worktree-isolation')) ? [] : await othersHere({ root, here, sessionId, self });
-  const where = others.length
-    ? 'Another session is working in this folder, so open it as a worktree inside the project: `git worktree add .worktrees/<branch> -b feat/<what-you-are-doing>` and commit inside `.worktrees/<branch>/`'
-    : 'You are the only session here, so stay in this same folder, no worktree: `git switch -c feat/<what-you-are-doing>` (or fix/…, docs/…) and commit there';
-  return `This project keeps its default branch "${trunk}" closed for the agent (it looks complex or in production: ${policy.signals.join(', ')}). ` +
-    `Do this work on a branch instead. ${where}; it reaches "${trunk}" through a pull request. ` +
-    'If this project is actually simple and the person asks to unlock it, run `npx @ericrisco/rsc main unlock` (a project decision, saved in .rsc.json).';
+  const branch = others.length
+    ? '`git worktree add .worktrees/<branch> -b feat/<what>` and commit inside `.worktrees/<branch>/` (another session is working in this folder)'
+    : '`git switch -c feat/<what>` in this same folder, no worktree';
+  return `This project keeps its default branch "${trunk}" closed for the agent (it looks complex or in production: ${policy.signals.join(', ')}), so this commit was not made. ` +
+    `Do not choose for the person: ask them in one line whether to open a branch for this change or to unlock "${trunk}". ` +
+    `Branch → ${branch}; it reaches "${trunk}" through a pull request. ` +
+    'Unlock → only on their explicit answer, `npx @ericrisco/rsc main unlock` (a project decision, saved in .rsc.json), then commit again.';
 }
 
 async function isolationDenial({ root, here, sessionId, self }) {

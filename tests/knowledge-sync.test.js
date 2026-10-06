@@ -577,3 +577,44 @@ test('ks51 · a commit with only code sends nothing', () => {
   turn(eric);
   assert.equal(git(remote, 'branch', '--list', K), '', 'rsc/knowledge was created for a code-only commit');
 });
+
+// ------------------------------------------------------------------ per branch (2026-10-06)
+
+test('ks52 · docs you wrote on one branch reach a branch you open later', () => {
+  const { eric } = team();
+  quiet(eric);
+  git(eric, 'switch', '-q', '-c', 'feat/a');
+  write(eric, '02-DOCS/wiki/ftd/a.md', '# a\n');
+  turn(eric);
+  git(eric, 'switch', '-q', 'main');
+  git(eric, 'switch', '-q', '-c', 'feat/b');
+  const said = String(message(eric));
+  assert.equal(read(eric, '02-DOCS/wiki/ftd/a.md'), '# a\n');
+  assert.match(said, /📥 .*ti, desde otra rama/);
+});
+
+test('ks53 · a teammate\'s docs, already brought into one branch, also reach a branch opened afterwards (the reported gap)', () => {
+  const { eric, ana } = team();
+  quiet(eric); quiet(ana);
+  git(eric, 'switch', '-q', '-c', 'feat/a');
+  message(eric);
+  write(ana, '02-DOCS/wiki/api.md', 'v1\n'); turn(ana);
+  assert.match(String(message(eric)), /📥 .*Ana/);
+  git(eric, 'switch', '-q', 'main');
+  git(eric, 'switch', '-q', '-c', 'feat/c');
+  assert.ok(!existsSync(join(eric, '02-DOCS/wiki/api.md')), 'precondition: the new branch starts without it');
+  message(eric);
+  assert.equal(read(eric, '02-DOCS/wiki/api.md'), 'v1\n');
+});
+
+test('ks54 · editing your own uploaded doc again on the same branch is not a clash', () => {
+  const { eric } = team();
+  quiet(eric);
+  git(eric, 'switch', '-q', '-c', 'feat/a');
+  write(eric, '02-DOCS/wiki/ftd/a.md', '# a\n');
+  turn(eric);
+  write(eric, '02-DOCS/wiki/ftd/a.md', '# a\n\n- [x] más\n');
+  const said = String(message(eric));
+  assert.doesNotMatch(said, /también has tocado/);
+  assert.equal(read(eric, '02-DOCS/wiki/ftd/a.md'), '# a\n\n- [x] más\n');
+});

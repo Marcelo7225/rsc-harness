@@ -102,11 +102,14 @@ test('tsd15 · the way out of a closed default branch: alone → a branch in thi
   // E2E 2026-10-04: told only "a branch", an agent alone reached for its assistant's own worktree tool.
   const r = repo(); write(r, 'Dockerfile');
   const alone = await evaluate({ root: r, command: 'git commit -m x', cwd: r, sessionId: 'me' });
-  assert.match(alone, /stay in this same folder, no worktree/);
+  assert.match(alone, /git switch -c feat\/<what>` in this same folder, no worktree/);
   assert.doesNotMatch(alone, /worktree add/);
+  // 2026-10-06, Eric: the agent never branches on its own; the denial hands the choice back.
+  assert.match(alone, /Do not choose for the person: ask them in one line whether to open a branch for this change or to unlock "main"/);
+  assert.match(alone, /only on their explicit answer, `npx @ericrisco\/rsc main unlock`/);
   session(r, 'other', 'codex');
   const shared = await evaluate({ root: r, command: 'git commit -m x', cwd: r, sessionId: 'me' });
-  assert.match(shared, /git worktree add \.worktrees\/<branch> -b feat\//);
+  assert.match(shared, /git worktree add \.worktrees\/<branch> -b feat\/<what>/);
 });
 
 test('tsd11 · commits are allowed on a branch, in a simple project, and once unlocked', async () => {
@@ -318,4 +321,17 @@ test('tsd40 · «desbloquea main» and «no uses worktrees» become project deci
   assert.deepEqual(readManifest(r).optOuts, []);
   const settings = readFileSync(join(r, '.claude', 'settings.json'), 'utf8');
   assert.match(settings, /branch-guard\.mjs/, 'the guard is wired');
+});
+
+test('tsd18 · every text the agent reads says: ask before branching, never branch on your own (2026-10-06)', async () => {
+  const { SDD_GATE_TEXT } = await import('../targets/hook-once.mjs');
+  const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
+  assert.match(SDD_GATE_TEXT, /Ask first, every time: a branch or the default branch\? Never\s+branch on your own/);
+  assert.match(read('skills/suggest/SKILL.md'), /Before each change that writes code, ask: a branch, or straight on the default branch\? Never\s+branch on your own/);
+  const ftd = read('skills/ftd/SKILL.md');
+  assert.match(ftd, /never a branch opened on your own/);
+  assert.match(ftd, /¿Abro una rama o desbloqueo/);
+  assert.doesNotMatch(ftd, /Open it yourself/);
+  assert.match(read('skills/worktrees/SKILL.md'), /Never run `implement` on the default branch without asking/);
+  assert.match(read('skills/implement/SKILL.md'), /Never branch on your own/);
 });

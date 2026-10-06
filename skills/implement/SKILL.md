@@ -45,9 +45,9 @@ back — you do not write feature code anyway.
 4. **Read the register.** Open `02-DOCS/wiki/harness/user-profile.md` and read `technical_level`.
    It picks technical terms or plain words with analogies at each checkpoint (see "Checkpoints"
    below). No profile yet → use analogies, and ask before any irreversible step.
-5. **Confirm isolation.** Implementation happens on a feature branch or worktree, never directly on
-   the default branch. If you are on `main`/`master`, stop and hand to `worktrees` before the first
-   commit.
+5. **Confirm isolation.** On `main`/`master`, stop before the first commit and ask the person: a
+   feature branch, or straight on the default branch (`worktrees`)? Never branch on your own; another
+   session in this folder makes the worktree mandatory.
 6. **Scan the tasks for independence.** Mark which tasks share files/state and which are disjoint.
    Disjoint clusters are candidates for `parallel`; everything else runs in order.
 
@@ -314,7 +314,7 @@ outranks the plan, and the plan outranks your in-the-moment preference.
 - **Unresolved `analyze` findings** (contradiction between constitution ↔ spec ↔ plan ↔ tasks) →
   resolve them before any code; they will only get more expensive after the diff exists.
 - **A task forces a constitution violation** → surface it, stop, kick it back to `analyze`/`plan`.
-- **You're on the default branch** → stop before the first commit; hand to `worktrees`.
+- **You're on the default branch** → stop before the first commit and ask: branch or default branch (`worktrees`).
 - **A test won't go red** (wrong reason — import error, syntax) → fix the test before trusting it.
 - **The combined suite is red after a parallel merge** → do not checkpoint as done; debug with
   `debug` before continuing.

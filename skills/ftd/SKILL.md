@@ -1,6 +1,6 @@
 ---
 name: ftd
-description: "Use for ordinary authorised change — the default lane once the decisor has ruled out a question and not selected the chain. Keeps one feature document per feature in 02-DOCS holding intent, scope, checklist, evidence and next step, checks tasks off only against observed proof, and branches when the work writes code. NOT the ten-phase chain (that is `sdd`), NOT the classification itself (that is the decisor in `suggest`), NOT a request for information, which writes nothing."
+description: "Use for ordinary authorised change — the default lane once the decisor has ruled out a question and not selected the chain. Keeps one feature document per feature in 02-DOCS holding intent, scope, checklist, evidence and next step, checks tasks off only against observed proof, and asks whether to branch before the work writes code. NOT the ten-phase chain (that is `sdd`), NOT the classification itself (that is the decisor in `suggest`), NOT a request for information, which writes nothing."
 tags: [ftd, lane, default, feature-document, evidence]
 recommends: [worktrees, debug, verify]
 profiles: [minimal, core, full]
@@ -53,14 +53,16 @@ the chain: a result asserted without evidence is treated as not done.
 
 ## Isolation
 
-Where the work runs depends on the project, judged change by change (team-safe-default):
+Where the work runs is the person's call, asked change by change — never a branch opened on your own:
 
-- **Complex or in production** (deploys, CI, several people committing, a protected default branch)
-  → a branch, never the default branch. Open it yourself, named by intent, and close it with a pull
-  request. Something unrelated to the current branch gets its own branch from the default one.
-- **Simple** (scripts, research, personal) → the default branch is fine.
+- **Before each change that writes code**, ask in one line: «¿Lo hago en una rama nueva o directamente
+  en `<default branch>`?». A branch is named by intent and closes with a pull request.
+- **Default branch closed for the agent** (rsc refuses the commit there: CI, a deployment or several
+  people committing) → ask: «¿Abro una rama o desbloqueo `<default branch>`?». Unlocking is
+  `rsc main unlock`, a project decision; never run it without that answer.
+- **Docs, wiki or config only** → no question, no branch.
 - **Another session working in this same folder** → a worktree in `.worktrees/<branch>/`, never a
-  branch switch under the other session. rsc tells you when that is the case.
+  branch switch under the other session. Not a question: rsc tells you when that is the case.
 
 A worktree only when another session is there: alone, setting one up costs more than it protects.
 

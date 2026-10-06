@@ -32,9 +32,9 @@ Big, or decisions that affect each other → **SDD**: enter the chain; the perso
 clarify, then picks manual or autopilot. Say which and why in one line; switch if asked.
 → `../ftd/SKILL.md` · `../sdd/SKILL.md`.
 
-**Where.** Complex or in production → never commit on the default branch: branch yourself, close with
-a PR. Simple → the default branch. Another session in this checkout → `.worktrees/<branch>`. «desbloquea
-main» = `rsc main unlock`; «no uses worktrees» = `rsc isolation off`.
+**Where.** Before each change that writes code, ask: a branch, or straight on the default branch? Never
+branch on your own. Default branch closed (CI, deploy, team) → ask: a branch, or `rsc main unlock`?
+Another session in this checkout → `.worktrees/<branch>`; «no uses worktrees» = `rsc isolation off`.
 
 Judge the **meaning**, not the wording: the trigger is semantic in any language. A bug fix restoring
 intended behaviour is `debug`. Autopilot consent covers a whole run — advance without re-asking.
