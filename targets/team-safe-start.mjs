@@ -12,7 +12,7 @@
 // Each returns the text to say, or ''. None throws: a session start is never worth breaking.
 // Standalone siblings under `.rsc/`: trunk-policy.mjs, worktree-reaper.mjs, session-memory-core.mjs.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, join, sep } from 'node:path';
 
 const git = (root, args) => {
@@ -92,13 +92,23 @@ export async function relocateOldWorktrees(root) {
 
 const MARK = '.team-safe-3';
 
-export function teamSafeAnnouncement(root) {
+// Which language to say it in. The profile's `language:` frontmatter field when there is one, then the
+// locale the assistant runs under, and English when neither says: this banner reached English-speaking
+// users in Spanish. The other always-on texts are English and ask the agent to relay them in the
+// person's language; this one keeps a Spanish version because it was written for Spanish users first.
+export function announcementLanguage(root, env = process.env) {
   try {
-    const mark = join(root, '.rsc', MARK);
-    if (existsSync(mark)) return '';
-    mkdirSync(join(root, '.rsc'), { recursive: true });
-    writeFileSync(mark, `${new Date().toISOString()}\n`);
-    return `
+    const profile = readFileSync(join(root, '02-DOCS', 'wiki', 'harness', 'user-profile.md'), 'utf8');
+    const front = /^---\r?\n([\s\S]*?)\r?\n---/.exec(profile)?.[1] || '';
+    const declared = /^(?:language|lang|idioma)\s*:\s*["']?([^"'\r\n]+)/mi.exec(front)?.[1]?.trim().toLowerCase();
+    if (declared) return /^(es|spa|español|espanol|castellano|spanish)\b/.test(declared) ? 'es' : 'en';
+  } catch { /* no profile: fall through to the locale */ }
+  const locale = String(env.LC_ALL || env.LC_MESSAGES || env.LANG || '').toLowerCase();
+  return /^es([_.-]|$)/.test(locale) ? 'es' : 'en';
+}
+
+const ANNOUNCEMENT = {
+  es: `
 ===== rsc 3.0 · equipo seguro por defecto =====
 ACTION: díselo a la persona en pocas líneas, una vez, antes de su petición:
 1. Si la rama principal está abierta (proyectos sencillos), el agente trabaja en ella sin preguntar.
@@ -108,9 +118,65 @@ ACTION: díselo a la persona en pocas líneas, una vez, antes de su petición:
    worktree en .worktrees/<rama>/. Para no hacerlo: «no uses worktrees».
 3. El agente elige solo entre FTD (lo sencillo) y SDD (lo grande o complejo) y lo dice; se puede
    pedir el otro.
-4. 01-TOOLS/ y 02-DOCS/ viajan al equipo por la rama rsc/knowledge y llegan a la principal dentro de
-   las PRs. Para apagarlo: rsc knowledge-sync off.
+4. Las herramientas (01-TOOLS/) y la wiki (02-DOCS/wiki/, attachments/) viajan al equipo por la
+   rama rsc/knowledge y llegan a la principal dentro de las PRs. Para apagarlo: rsc knowledge-sync off.
 ==============================================
-`;
+`,
+  en: `
+===== rsc 3.0 · team-safe by default =====
+ACTION: tell the person in a few lines, once, before their request, in their language:
+1. If the default branch is open (simple projects), the agent works on it without asking.
+   If it is closed (long-lived code, CI or a team), it asks before each change: this branch,
+   a new one, or unlock? It never opens a branch on its own. To change it: "unlock main" or
+   "lock main" (rsc main unlock | lock).
+2. If another assistant session is working in this same folder, new work goes to a worktree in
+   .worktrees/<branch>/. To turn that off: "don't use worktrees" (rsc isolation off).
+3. The agent picks between FTD (simple work) and SDD (large or complex work) and says which; you
+   can ask for the other.
+4. Tools (01-TOOLS/) and the wiki (02-DOCS/wiki/, attachments/) travel to the team on the
+   rsc/knowledge branch and reach the default branch inside pull requests. Off: rsc knowledge-sync off.
+==========================================
+`,
+};
+
+export function teamSafeAnnouncement(root, env = process.env) {
+  try {
+    const mark = join(root, '.rsc', MARK);
+    if (existsSync(mark)) return '';
+    mkdirSync(join(root, '.rsc'), { recursive: true });
+    writeFileSync(mark, `${new Date().toISOString()}\n`);
+    return ANNOUNCEMENT[announcementLanguage(root, env)];
   } catch { return ''; }
 }
+
+/**
+ * The harness only reaches a teammate through what is committed: `.rsc.json` (the decision), the
+ * Claude settings that wire the guards and hooks, the bootstrap a clone runs. Field tests 3.0.7 and
+ * 3.0.8: five sessions each, and none of those files was ever committed — «team-safe by default»
+ * that never left the machine. Said at session start while `.rsc.json` is untracked in a repo with a
+ * remote; at most once a week, so it informs without nagging (P7). The agent proposes, never commits
+ * on its own.
+ */
+const HARNESS_FILES = ['.rsc.json', '.claude/settings.json', '.claude/rsc-bootstrap.mjs', '.gitignore'];
+const COMMIT_MARK = '.harness-commit-offered';
+const WEEK_MS = 7 * 24 * 3600 * 1000;
+
+export function harnessCommitNotice(root, now = Date.now()) {
+  try {
+    const run = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    if (!existsSync(join(root, '.rsc.json'))) return '';
+    if (!run(['remote'])) return '';
+    if (run(['ls-files', '--', '.rsc.json'])) return '';
+    const mark = join(root, '.rsc', COMMIT_MARK);
+    if (existsSync(mark) && now - Date.parse(readFileSync(mark, 'utf8').trim()) < WEEK_MS) return '';
+    mkdirSync(join(root, '.rsc'), { recursive: true });
+    writeFileSync(mark, `${new Date(now).toISOString()}\n`);
+    const files = HARNESS_FILES.filter((f) => existsSync(join(root, f)));
+    return '===== rsc · harness not committed =====\n' +
+      `The harness files (${files.join(', ')}) are not in git, so teammates and new clones get no guards, ` +
+      'hooks or decisions. ACTION: tell the person in one line, in their language, and offer to commit ' +
+      'them with their next change (on the branch this project uses). Do not commit them on your own.\n' +
+      '=======================================\n';
+  } catch { return ''; }
+}
+

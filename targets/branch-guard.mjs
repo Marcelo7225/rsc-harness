@@ -33,6 +33,29 @@ export const COMMITS_HERE = new RegExp(String.raw`\bgit\s+${GIT_OPTS}(?:commit|m
 // A branch move: switch, or checkout of something that is not a path (`checkout -- f`, `checkout HEAD -- f`).
 export const MOVES_BRANCH = new RegExp(String.raw`\bgit\s+${GIT_OPTS}(?:switch(?![\w-])|checkout(?![\w-])(?![^;&|\n]*\s--(?:\s|$)))`);
 
+// A move of a branch REF without a commit: `git update-ref <ref> …` or a forced `git branch`
+// (-f/--force, -M, -C). Which ref it moves is read by refMoveTarget().
+export const MOVES_REF = new RegExp(String.raw`\bgit\s+${GIT_OPTS}(?:update-ref(?![\w-])|branch\s+(?:\S+\s+)*?(?:-[A-Za-z]*[fMC][A-Za-z]*|--force)(?=\s|$))`);
+
+// A push whose DESTINATION is named: `git push origin HEAD:main`, `feat/x:refs/heads/main`, `--mirror`.
+export const PUSHES = new RegExp(String.raw`\bgit\s+${GIT_OPTS}push(?![\w-])`);
+
+/** True when this push segment writes to branch `trunk` on the remote by an explicit refspec. */
+export function pushesTo(seg, trunk) {
+  const t = tokens(seg.replace(/^.*?\bgit\s+/, '').replace(/^(?:(?:-C|-c)\s+\S+\s+|--\S+\s+)*/, ''));
+  if (t.shift() !== 'push') return false;
+  const args = [];
+  for (let i = 0; i < t.length; i++) {
+    if (t[i] === '--mirror') return true; // rewrites every ref on the remote, the default branch included
+    if (/^(-o|--push-option|--repo|--receive-pack|--exec)$/.test(t[i])) { i++; continue; }
+    if (!t[i].startsWith('-')) args.push(t[i]);
+  }
+  return args.slice(1).some((spec) => {
+    const dst = spec.replace(/^\+/, '').split(':')[1];
+    return dst !== undefined && dst.replace(/^refs\/heads\//, '') === trunk;
+  });
+}
+
 export const unquoted = (command) => command.replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, '""');
 
 /** Where the git command actually runs: `git -C <dir>`, or a leading `cd <dir> &&`, else the cwd. */
@@ -54,27 +77,10 @@ const ago = (iso) => {
   return min <= 1 ? 'just now' : `${min} min ago`;
 };
 
-/** Heredoc bodies are text being written, not commands: `cat > notes.md <<EOF … git commit … EOF`. */
-export const withoutHeredocs = (command) => command.replace(/<<-?\s*(['"]?)([A-Za-z_]\w*)\1[^\n]*\n[\s\S]*?\n\s*\2\s*(?=\n|$)/g, '');
-
-/** The command split where the shell would run one thing after another, never inside quotes. */
-export function segments(command) {
-  const out = [];
-  let cur = '';
-  let q = null;
-  for (let i = 0; i < command.length; i++) {
-    const c = command[i];
-    if (q) { cur += c; if (c === '\\' && q === '"') cur += command[++i] ?? ''; else if (c === q) q = null; continue; }
-    if (c === '"' || c === "'") { q = c; cur += c; continue; }
-    if (c === ';' || c === '\n' || c === '|' || c === '&') {
-      if ((c === '&' || c === '|') && command[i + 1] === c) i++;
-      out.push(cur); cur = ''; continue;
-    }
-    cur += c;
-  }
-  out.push(cur);
-  return out.filter((s) => s.trim());
-}
+// The quote-aware split, the heredoc strip and the shell unwrapping (`bash -c "…"`, `eval`, `env`…)
+// live in shell-unwrap.mjs, shared with the other guards (E2E defect 15). It is a sibling import
+// like trunk-policy.mjs; without it the guard cannot read a command and fails open.
+const SH = await import(new URL('./shell-unwrap.mjs', import.meta.url)).catch(() => null);
 const tokens = (s) => s.trim().split(/\s+/).filter(Boolean);
 
 /** What a branch-moving segment moves to, or null if it is a path checkout after all (`checkout .`). */
@@ -89,6 +95,31 @@ function moveTarget(seg, dir) {
   return { name, created: false };
 }
 
+/** The branch a ref-moving segment points somewhere else (`update-ref refs/heads/x`, `branch -f x`), or null. */
+export function refMoveTarget(seg) {
+  const t = tokens(seg.replace(/^.*?\bgit\s+/, '').replace(/^(?:(?:-C|-c)\s+\S+\s+|--\S+\s+)*/, ''));
+  const verb = t.shift();
+  if (verb === 'update-ref') {
+    const args = [];
+    for (let i = 0; i < t.length; i++) {
+      if (t[i] === '-m') { i++; continue; }
+      if (t[i] === '--stdin') return null; // refs come from stdin: unreadable here
+      if (!t[i].startsWith('-')) args.push(t[i]);
+    }
+    const m = (args[0] || '').match(/^refs\/heads\/(.+)$/);
+    return m ? m[1] : null;
+  }
+  if (verb !== 'branch') return null;
+  const flags = t.filter((x) => x.startsWith('-'));
+  const names = t.filter((x) => !x.startsWith('-'));
+  const short = flags.filter((f) => /^-[A-Za-z]+$/.test(f)).join('');
+  const renames = /[mMcC]/.test(short) || flags.some((f) => /^--(move|copy)$/.test(f));
+  const forced = /[fMC]/.test(short) || flags.includes('--force');
+  if (!forced || /[dD]/.test(short)) return null;
+  // `branch -M [old] new` / `-C [old] new`: the last name is the one overwritten; `-f name [start]`: the first.
+  return (renames ? names[names.length - 1] : names[0]) || null;
+}
+
 /**
  * Rule A and rule B, judged segment by segment: a chain is followed the way the shell runs it, so
  * `git switch -c feat/x && git commit` is a commit on feat/x (allowed) and `git switch main && git
@@ -96,12 +127,14 @@ function moveTarget(seg, dir) {
  */
 export async function evaluate({ root, command, cwd, sessionId }) {
   if (typeof command !== 'string' || !command) return null;
+  if (!SH) return null;
   // Words inside quotes or heredocs are text, not commands: `grep -rn "git commit" docs/` is a search.
-  const bare = unquoted(withoutHeredocs(command));
-  if (!COMMITS_HERE.test(bare) && !MOVES_BRANCH.test(bare)) return null;
-  const self = (rel) => new URL(rel, import.meta.url);
-  const raw = segments(withoutHeredocs(command));
+  // Except where a wrapper hands the string to a shell: `bash -c "git commit"` runs the commit, so
+  // the segments judged are the ones the shell would really run (shell-unwrap.mjs).
+  const raw = SH.expand(command);
   const segs = raw.map(unquoted);
+  if (!segs.some((s) => COMMITS_HERE.test(s) || MOVES_BRANCH.test(s) || MOVES_REF.test(s) || PUSHES.test(s))) return null;
+  const self = (rel) => new URL(rel, import.meta.url);
   let dir = cwd || root;
   const branchAt = new Map(); // toplevel → branch the chain has moved it to
 
@@ -111,7 +144,9 @@ export async function evaluate({ root, command, cwd, sessionId }) {
     if (cd) { const d = cd[1].replace(/^["']|["']$/g, ''); dir = isAbsolute(d) ? d : resolve(dir, d); continue; }
     const commits = COMMITS_HERE.test(seg);
     const moves = MOVES_BRANCH.test(seg);
-    if (!commits && !moves) continue;
+    const movesRef = MOVES_REF.test(seg);
+    const pushes = PUSHES.test(seg);
+    if (!commits && !moves && !movesRef && !pushes) continue;
     const at = effectiveDir(raw[i] || seg, dir);
     const git = gitAt(at);
     const top = git('rev-parse', '--show-toplevel');
@@ -127,6 +162,32 @@ export async function evaluate({ root, command, cwd, sessionId }) {
         }
         if (target.name) branchAt.set(here, target.name);
       }
+    }
+
+    // Rule A, the other way onto the default branch: pointing it somewhere else without a commit.
+    if (movesRef && !existsSync(join(root, '.rsc', '.no-trunk-guard'))) {
+      try {
+        const { trunkPolicy, defaultBranchName } = await import(self('./trunk-policy.mjs'));
+        const trunk = defaultBranchName(here);
+        if (trunk && refMoveTarget(seg) === trunk) {
+          const policy = trunkPolicy(here);
+          if (policy.closed) return refDenial({ trunk, policy });
+        }
+      } catch { /* policy module missing → nothing to enforce */ }
+    }
+
+    // And by pushing straight into it: `git push origin HEAD:main` from a feature branch. Branch
+    // protection on the server would refuse it, but a repo without one would take it (second team
+    // simulation) — so the closed trunk is enforced here, where the agent runs it.
+    if (pushes && !existsSync(join(root, '.rsc', '.no-trunk-guard'))) {
+      try {
+        const { trunkPolicy, defaultBranchName } = await import(self('./trunk-policy.mjs'));
+        const trunk = defaultBranchName(here);
+        if (trunk && pushesTo(seg, trunk)) {
+          const policy = trunkPolicy(here);
+          if (policy.closed) return refDenial({ trunk, policy, how: '`git push <remote> <branch>:' + trunk + '`' });
+        }
+      } catch { /* policy module missing → nothing to enforce */ }
     }
 
     if (commits && !existsSync(join(root, '.rsc', '.no-trunk-guard'))) {
@@ -162,6 +223,13 @@ async function trunkDenial({ root, here, sessionId, self, trunk, policy }) {
     `Do not choose for the person: ask them in one line whether to open a branch for this change or to unlock "${trunk}". ` +
     `Branch → ${branch}; it reaches "${trunk}" through a pull request. ` +
     'Unlock → only on their explicit answer, `npx @ericrisco/rsc main unlock` (a project decision, saved in .rsc.json), then commit again.';
+}
+
+function refDenial({ trunk, policy, how = '`git update-ref` and a forced `git branch`' }) {
+  return `This project keeps its default branch "${trunk}" closed for the agent (it looks complex or in production: ${policy.signals.join(', ')}), so "${trunk}" was not moved — ` +
+    `${how} land${how.includes(' and ') ? '' : 's'} work on it with no review. ` +
+    `Work reaches "${trunk}" through a pull request: push the branch and open one (the \`ship\` skill). ` +
+    `Do not choose for the person: if they want "${trunk}" moved by hand, ask them in one line; only on their explicit answer, \`npx @ericrisco/rsc main unlock\` (a project decision, saved in .rsc.json).`;
 }
 
 async function isolationDenial({ root, here, sessionId, self }) {

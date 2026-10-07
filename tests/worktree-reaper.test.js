@@ -1117,3 +1117,182 @@ test('51b · but a worktree created at the trunk and never committed to is still
   assert.equal(c.verdict, 'skip');
   assert.deepEqual(c.reasons, ['nothing-landed'], 'a live workspace is not leftovers');
 });
+
+// ── 52. plain merged branches: the other half of "al fusionar se borra solo" ───────────────────
+//
+// E2E defect 14 (2026-10-07): the reaper retired landed WORKTREES, but a plain local branch that
+// had landed — merged into the default branch, or whose remote branch the forge deleted after the
+// PR (`[gone]`) — stayed for ever, so `git branch` filled up with landed work that looks live.
+// `reapMergedBranches` deletes exactly the ones git itself calls safe (`branch -d`, never -D), and
+// keeps everything that could still hold work: unmerged, gone-but-unique, current, checked out in a
+// worktree, the default branch, `rsc/knowledge`, and a branch that never carried a commit.
+
+function repoWithOrigin() {
+  const root = repo();
+  const remote = mkdtempSync(join(tmpdir(), 'rsc-remote-'));
+  TMP.push(remote);
+  git(remote, 'init', '--bare', '-q', '-b', 'main');
+  git(root, 'remote', 'add', 'origin', remote);
+  git(root, 'push', '-q', '-u', 'origin', 'main');
+  return root;
+}
+function branchWithCommit(root, name, file = `${name.replace(/\//g, '-')}.txt`) {
+  git(root, 'switch', '-q', '-c', name);
+  write(root, file, `${name}\n`);
+  git(root, 'add', '-A');
+  git(root, 'commit', '-qm', `work on ${name}`);
+  git(root, 'switch', '-q', 'main');
+}
+const branches = (root) => git(root, 'for-each-ref', '--format=%(refname:short)', 'refs/heads').split('\n').filter(Boolean);
+
+test('52 · merged branches go; unmerged, gone-but-unique and current stay', async () => {
+  const { reapMergedBranches } = await import(MOD);
+  const root = repoWithOrigin();
+
+  branchWithCommit(root, 'feat/merged');
+  git(root, 'merge', '-q', '--no-ff', 'feat/merged', '-m', 'merge feat/merged');
+
+  branchWithCommit(root, 'fix/gone-merged');
+  git(root, 'push', '-q', '-u', 'origin', 'fix/gone-merged');
+  git(root, 'merge', '-q', '--no-ff', 'fix/gone-merged', '-m', 'merge fix/gone-merged');
+  git(root, 'push', '-q', 'origin', 'main');
+  git(root, 'push', '-q', 'origin', '--delete', 'fix/gone-merged');
+  git(root, 'fetch', '-q', '--prune');
+
+  branchWithCommit(root, 'feat/unmerged');
+
+  // A squash-merged PR whose remote branch was deleted: [gone], but its commits are its own.
+  branchWithCommit(root, 'feat/gone-unique');
+  git(root, 'push', '-q', '-u', 'origin', 'feat/gone-unique');
+  squashIntoTrunk(root, 'feat/gone-unique');
+  git(root, 'push', '-q', 'origin', '--delete', 'feat/gone-unique');
+  git(root, 'fetch', '-q', '--prune');
+
+  branchWithCommit(root, 'rsc/knowledge');
+  git(root, 'merge', '-q', '--no-ff', 'rsc/knowledge', '-m', 'merge knowledge');
+
+  git(root, 'branch', 'feat/fresh'); // cut, never committed to: a plan, not leftovers
+
+  // The current branch, merged too: never deleted from under the person.
+  branchWithCommit(root, 'feat/current');
+  git(root, 'merge', '-q', '--no-ff', 'feat/current', '-m', 'merge feat/current');
+  git(root, 'push', '-q', 'origin', 'main');
+  git(root, 'switch', '-q', 'feat/current');
+
+  const out = reapMergedBranches(root);
+  assert.deepEqual(out.deleted.sort(), ['feat/merged', 'fix/gone-merged']);
+  const left = branches(root);
+  for (const b of ['main', 'feat/unmerged', 'feat/gone-unique', 'rsc/knowledge', 'feat/fresh', 'feat/current']) {
+    assert.ok(left.includes(b), `${b} must be kept: ${JSON.stringify(out.kept)}`);
+  }
+  assert.ok(!left.includes('feat/merged') && !left.includes('fix/gone-merged'));
+});
+
+test('52b · merged locally but not on the remote default yet: kept (its commits are unpushed)', async () => {
+  const { reapMergedBranches } = await import(MOD);
+  const root = repoWithOrigin();
+  branchWithCommit(root, 'feat/local-only');
+  git(root, 'merge', '-q', '--no-ff', 'feat/local-only', '-m', 'merge');
+  assert.deepEqual(reapMergedBranches(root).deleted, []);
+  git(root, 'push', '-q', 'origin', 'main');
+  assert.deepEqual(reapMergedBranches(root).deleted, ['feat/local-only']);
+});
+
+test('52c · a merged branch checked out in a worktree stays, and the opt-out stops it all', async () => {
+  const { reapMergedBranches } = await import(MOD);
+  const root = repo();
+  branchWithCommit(root, 'feat/in-tree');
+  git(root, 'merge', '-q', '--no-ff', 'feat/in-tree', '-m', 'merge');
+  const dir = join(root, '.worktrees', 'held');
+  git(root, 'worktree', 'add', '-q', dir, 'feat/in-tree');
+  assert.deepEqual(reapMergedBranches(root).deleted, []);
+  git(root, 'worktree', 'remove', dir);
+  mkdirSync(join(root, '.rsc'), { recursive: true });
+  writeFileSync(join(root, '.rsc', '.no-worktree-cleanup'), '');
+  assert.deepEqual(reapMergedBranches(root).deleted, []);
+  assert.ok(branches(root).includes('feat/in-tree'));
+});
+
+test('52d · the post-merge hook deletes a merged plain branch and says so', () => {
+  const root = repo();
+  materializeReaper(root);
+  installMergeHook(root);
+  branchWithCommit(root, 'fix/plain');
+  const r = spawnSync('git', ['-C', root, 'merge', '--no-ff', 'fix/plain', '-m', 'land'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!branches(root).includes('fix/plain'), 'the merge itself must have deleted the landed branch');
+  assert.match(r.stdout + r.stderr, /rsc: deleted merged branch fix\/plain/);
+  const out = autoReap(root);
+  assert.deepEqual(out.branches.deleted, [], 'nothing left to delete the second time');
+});
+
+test('52e · `rsc worktrees reap` deletes landed plain branches too, and names them', () => {
+  const root = repo();
+  branchWithCommit(root, 'docs/landed');
+  git(root, 'merge', '-q', '--no-ff', 'docs/landed', '-m', 'land');
+  branchWithCommit(root, 'feat/live');
+  const r = spawnSync('node', [CLI, 'worktrees', 'reap'], { cwd: root, encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /deleted merged branch docs\/landed/);
+  assert.deepEqual(branches(root).sort(), ['feat/live', 'main']);
+});
+
+// ── 53. rsc's own state is not "unsaved work" (team simulation W3 / D8) ──────────────────────────
+//
+// A worktree a session worked in grows a `.rsc/` of its own — knowledge-sync's marker, the memory
+// journal. The reaper read that as files that "would be lost" and refused to retire a landed
+// worktree, in every worktree, for ever: the cleanup promised by default never ran. `.rsc/` is
+// harness state, so it does not block; but the journal inside it is a session's history, so it is
+// moved to the project's store before the directory goes.
+
+function landedWorktree(root, slug) {
+  const wt = rscWorktree(root, slug);
+  write(wt.path, `${slug}.txt`, 'work\n');
+  git(wt.path, 'add', '-A');
+  git(wt.path, 'commit', '-qm', `feat: ${slug}`);
+  mergeIntoTrunk(root, wt.branch);
+  return wt;
+}
+
+const journal = (updatedAt, marker) => JSON.stringify({ sessionId: marker, timestamps: { updatedAt }, marker });
+
+test('53 · a landed worktree holding only .rsc/ is retired, and its journal moves to the project', () => {
+  const root = repo();
+  const wt = landedWorktree(root, 'busqueda');
+  write(wt.path, '.rsc/knowledge-sync.json', '{}\n');
+  write(wt.path, '.rsc/memory/sessions/claude--S1.json', journal('2026-10-07T08:55:00.000Z', 'S1'));
+  write(wt.path, '.rsc/memory/anchors/claude--S1.json', '{"sessionId":"S1"}\n');
+
+  assert.equal(verdictFor(root, wt.path).verdict, 'safe', JSON.stringify(verdictFor(root, wt.path)));
+  const out = autoReap(root);
+  assert.deepEqual(out.reaped, [wt.path]);
+  assert.equal(existsSync(wt.path), false);
+  assert.match(readFileSync(join(root, '.rsc', 'memory', 'sessions', 'claude--S1.json'), 'utf8'), /"S1"/,
+    'the session journal must survive the worktree');
+  assert.ok(existsSync(join(root, '.rsc', 'memory', 'anchors', 'claude--S1.json')));
+});
+
+test('53b · the move never overwrites a newer record the project already has', () => {
+  const root = repo();
+  const wt = landedWorktree(root, 'borrar');
+  write(wt.path, '.rsc/memory/sessions/claude--S2.json', journal('2026-10-07T08:00:00.000Z', 'OLD'));
+  write(root, '.rsc/memory/sessions/claude--S2.json', journal('2026-10-07T09:00:00.000Z', 'NEW'));
+  write(wt.path, '.rsc/memory/sessions/claude--S3.json', journal('2026-10-07T09:30:00.000Z', 'WT-NEWER'));
+  write(root, '.rsc/memory/sessions/claude--S3.json', journal('2026-10-07T08:30:00.000Z', 'ROOT-OLDER'));
+  autoReap(root);
+  assert.equal(existsSync(wt.path), false);
+  assert.match(readFileSync(join(root, '.rsc', 'memory', 'sessions', 'claude--S2.json'), 'utf8'), /NEW/);
+  assert.match(readFileSync(join(root, '.rsc', 'memory', 'sessions', 'claude--S3.json'), 'utf8'), /WT-NEWER/);
+});
+
+test('53c · control: anything else outside history still blocks, .rsc/ or not', () => {
+  const root = repo();
+  const wt = landedWorktree(root, 'notas');
+  write(wt.path, '.rsc/knowledge-sync.json', '{}\n');
+  write(wt.path, 'notes-for-me.txt', 'only copy\n');
+  const v = verdictFor(root, wt.path);
+  assert.equal(v.verdict, 'ask');
+  assert.deepEqual(v.details.outside, ['notes-for-me.txt'], 'the refusal names the real file, not .rsc/');
+  autoReap(root);
+  assert.equal(existsSync(wt.path), true);
+});

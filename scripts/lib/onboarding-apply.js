@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { appendFileSync, copyFileSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import { applyInstall, pruneSharedBases, removeTargetInstall } from '../install-apply.js';
 import { targetPaths } from '../../targets/index.js';
 import { targetHasAgents } from '../../targets/agents.js';
@@ -10,6 +10,7 @@ import { readManifest, writeManifest } from './manifest-file.js';
 import { encodeGoal, identifyPlan } from './onboarding.js';
 import { createBackup, restoreBackup } from './backups.js';
 import { RETIRED_SKILLS, replaceRetired } from './retired-skills.js';
+import { LAYER_IGNORE, TEMPLATE_SOURCE, targetName, templateAssets } from './tools-skeleton.js';
 
 const sameSet = (a = [], b = []) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
 
@@ -157,12 +158,35 @@ export function mergeProfile(existing, plan, previousRecord) {
   return `---\n${front.join('\n')}\n---\n${body.startsWith('\n') ? '' : '\n'}${body}`;
 }
 
+/**
+ * The profile is one person's dials (knowledge-sync never sends it), so it never belongs in a commit
+ * either — yet it sat untracked for good, and every session's agent reported it as «cambios sin
+ * commitear» (E2E 2026-10-07). Excluded in THIS clone only (`info/exclude`, not `.gitignore`), and
+ * never when the team already tracks it: that is their decision.
+ */
+export function excludePersonalProfile(cwd) {
+  const git = (args) => { try { return execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return null; } };
+  if (git(['rev-parse', '--is-inside-work-tree']) !== 'true') return false;
+  const rel = '02-DOCS/wiki/harness/user-profile.md';
+  if (git(['ls-files', '--', rel])) return false;
+  const value = git(['rev-parse', '--git-path', 'info/exclude']);
+  if (!value) return false;
+  const file = resolve(cwd, value);
+  const pattern = `/${rel}`;
+  mkdirSync(dirname(file), { recursive: true });
+  const body = existsSync(file) ? readFileSync(file, 'utf8') : '';
+  if (body.split('\n').includes(pattern)) return true;
+  appendFileSync(file, `${body && !body.endsWith('\n') ? '\n' : ''}${pattern}\n`);
+  return true;
+}
+
 export function writeOnboardingDocuments(cwd, plan, planId, previousRecord = null) {
   const dir = join(cwd, '02-DOCS', 'wiki', 'harness');
   mkdirSync(dir, { recursive: true });
   const docs = renderOnboardingDocuments(plan, planId);
   const profilePath = join(dir, 'user-profile.md');
   writeFileSync(profilePath, mergeProfile(existsSync(profilePath) ? readFileSync(profilePath, 'utf8') : '', plan, previousRecord));
+  excludePersonalProfile(cwd);
   writeFileSync(join(dir, 'installation-plan.md'), docs.installation);
   const decisionsPath = join(dir, 'decisions.md');
   if (!existsSync(decisionsPath)) writeFileSync(decisionsPath, docs.decisions);
@@ -343,34 +367,13 @@ export async function applyAcceptedOnboarding({ cwd = process.cwd(), plan, planI
 // Y la retro-compatibilidad no es una lista de exentos (P3): el suelo viaja DENTRO del plan, así
 // que un recibo aceptado por una versión anterior no lo trae y queda exento por construcción.
 
-const LIB_DIR = dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_SOURCE = join(LIB_DIR, '..', '..', 'skills', 'harness', 'assets', '_TEMPLATE');
 const TEMPLATE_FLOOR = '01-TOOLS/_TEMPLATE/';
 
 export const HARNESS_FLOOR_MINIMUM = [TEMPLATE_FLOOR, '02-DOCS/wiki/harness/'];
 export const HARNESS_FLOOR_CONSTITUTION = '02-DOCS/wiki/sdd/constitution.md';
 
-// Los ficheros que la plantilla trae hoy. Se lee del asset en vez de codificar una lista, para que
-// añadir un fichero a la plantilla no deje el suelo comprobando de menos en silencio.
-//
-// Un error aquí NO se convierte en lista vacía. Comérselo dejaba el suelo permanentemente
-// insatisfacible, con un mensaje que ofrecía una acción que leía ese mismo asset ausente y que por
-// tanto no podía arreglarlo nunca — y sin nombrar jamás la causa real, que es un paquete roto.
-function templateAssets() {
-  return readdirSync(TEMPLATE_SOURCE).sort();
-}
-
-// npm NUNCA empaqueta un fichero llamado `.gitignore`, así que el asset viaja sin punto y se copia
-// con él. Sin esto, desde el paquete publicado se copiaban 4 de 5 ficheros y el que faltaba era el
-// único que evita comitear el `.env` que el README —copiado por el propio instalador— manda crear.
-const DOTTED = { gitignore: '.gitignore' };
-const targetName = (asset) => DOTTED[asset] ?? asset;
-
-// La capa entera, no cada proveedor: el flujo documentado es copiar `_TEMPLATE/` a
-// `01-TOOLS/<PROVEEDOR>/`, y depender de que cada copia se lleve su propia protección es depender
-// de que nadie se salte un paso con credenciales de por medio.
-const LAYER_IGNORE = ['# Escrito por rsc: la capa de herramientas guarda credenciales.',
-  '*/.env', '*/.env.*', '!*/.env.example', '*/keys/', '*/out/', ''].join('\n');
+// La plantilla, sus nombres con punto y el `.gitignore` de la capa viven en `tools-skeleton.js`:
+// lo que se copia aquí es exactamente lo que `purge` puede recuperar, y sólo si sigue intacto.
 
 /**
  * Crea la parte determinista del esqueleto. Copiar ficheros estáticos es un algoritmo, así que por

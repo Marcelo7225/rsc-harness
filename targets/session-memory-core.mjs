@@ -1,5 +1,5 @@
 import {
-  appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync,
+  appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -83,21 +83,27 @@ export function chooseMemoryRoot(cwd = process.cwd()) {
     return { root: join(project, '.rsc', 'memory'), kind: 'local-state', reason: 'without-git', git: false };
   }
 
+  // The harness itself commits `worklog/.gitkeep` so the folder exists in every clone. A placeholder
+  // is not the team committing its worklog, and reading it as one warned every teammate in every clone
+  // about a tracked worklog that was an empty file (team simulation D13).
   const worklog = join(project, '02-DOCS', 'raw', 'worklog');
-  if (existsSync(worklog)) {
-    const tracked = git(project, ['ls-files', '--', '02-DOCS/raw/worklog']).out;
-    if (!tracked) {
-      const candidate = join(worklog, '.rsc-memory');
-      if (ensureExcluded(project, candidate)) {
-        return { root: candidate, kind: 'wiki-worklog', reason: 'untracked-worklog', git: true };
-      }
+  const local = join(project, '.rsc', 'memory');
+  const trackedFiles = existsSync(worklog)
+    ? git(project, ['ls-files', '--', '02-DOCS/raw/worklog']).out.split('\n').filter(Boolean) : [];
+  const trackedNotes = trackedFiles.filter((file) => !/(^|\/)\.(gitkeep|keep)$/u.test(file));
+  // A clone whose journal already lives in .rsc/memory keeps it there: moving would orphan its history.
+  const placeholderOnly = trackedFiles.length > 0 && trackedNotes.length === 0;
+  const settled = placeholderOnly && existsSync(join(local, 'sessions'));
+  if (existsSync(worklog) && !trackedNotes.length && !settled) {
+    const candidate = join(worklog, '.rsc-memory');
+    if (ensureExcluded(project, candidate)) {
+      return { root: candidate, kind: 'wiki-worklog', reason: 'untracked-worklog', git: true };
     }
   }
 
-  const local = join(project, '.rsc', 'memory');
   if (ensureExcluded(project, local)) {
-    const trackedWorklog = existsSync(worklog) && Boolean(git(project, ['ls-files', '--', '02-DOCS/raw/worklog']).out);
-    return { root: local, kind: 'local-state', reason: trackedWorklog ? 'tracked-worklog' : 'no-wiki', git: true };
+    const reason = trackedNotes.length ? 'tracked-worklog' : settled ? 'placeholder-worklog' : 'no-wiki';
+    return { root: local, kind: 'local-state', reason, git: true };
   }
 
   const gitRoot = git(project, ['rev-parse', '--git-path', 'rsc-memory']).out;
@@ -108,7 +114,7 @@ export function chooseMemoryRoot(cwd = process.cwd()) {
 }
 
 function ensureStore(root) {
-  for (const dir of ['sessions', 'anchors', 'lessons']) mkdirSync(join(root, dir), { recursive: true });
+  for (const dir of ['sessions', 'anchors', 'lessons', 'presence']) mkdirSync(join(root, dir), { recursive: true });
 }
 
 function atomicJson(path, value) {
@@ -169,9 +175,13 @@ function fingerprintFiles(worktree, files) {
   }));
 }
 
+// `📥 docs(auto): sync desde rsc/knowledge` — written by knowledge-sync.mjs when it imports the team's
+// documents. Authored locally, but its content is other people's.
+const KNOWLEDGE_IMPORT = /^\S*\s*docs\(auto\): sync desde /u;
+
 function snapshot(cwd, baselineHead = null) {
   const top = git(cwd, ['rev-parse', '--show-toplevel']);
-  if (!top.ok) return { git: false, branch: null, worktree: resolve(cwd), head: null, files: [], fingerprints: {}, commits: [] };
+  if (!top.ok) return { git: false, branch: null, worktree: resolve(cwd), head: null, files: [], dirty: [], committed: [], fingerprints: {}, commits: [] };
   const worktree = resolve(top.out);
   const branch = cleanString(git(cwd, ['symbolic-ref', '--quiet', '--short', 'HEAD']).out, 255);
   const head = cleanString(git(cwd, ['rev-parse', '--verify', 'HEAD']).out, 64);
@@ -179,11 +189,36 @@ function snapshot(cwd, baselineHead = null) {
   let committed = [];
   let commits = [];
   if (baselineHead && head && git(cwd, ['cat-file', '-e', `${baselineHead}^{commit}`]).ok) {
-    committed = git(cwd, ['diff', '--name-only', '-z', `${baselineHead}..${head}`]).out.split('\0').map((item) => cleanString(item, 1000)).filter(Boolean);
-    commits = git(cwd, ['log', '--format=%H', `${baselineHead}..${head}`]).out.split('\n').map((item) => cleanString(item, 64)).filter(Boolean);
+    // The session's OWN commits: the first-parent chain, merges left out. `baseline..head` after a
+    // `git merge origin/main` also walks every teammate commit the merge brought in, and the memory
+    // then told the next session it had done their work and should carry out their next step (team
+    // simulation, 2026-10-07). The files follow from those commits only — never `diff baseline..head`,
+    // which counts everything the merge changed. The knowledge-sync import commit is machine-made and
+    // carries other people's feature documents, so it is not the session's work either.
+    //
+    // A merge the session itself made IS its work, though (second team simulation: a session that
+    // merged main and resolved five conflicts was recorded as «no commits, files: none»). So merges on
+    // the first-parent chain stay, and from a merge only what the session resolved counts — the
+    // combined diff (`--cc`), never everything the merge brought in.
+    const own = git(cwd, ['log', '--first-parent', '--format=%H%x09%P%x09%s', `${baselineHead}..${head}`]).out
+      .split('\n').filter(Boolean).map((line) => line.split('\t'))
+      .filter(([, , subject = '']) => !KNOWLEDGE_IMPORT.test(subject));
+    commits = own.map(([sha]) => cleanString(sha, 64)).filter(Boolean);
+    const merges = new Set(own.filter(([, parents = '']) => parents.trim().split(/\s+/).length > 1).map(([sha]) => sha));
+    const touched = new Set();
+    for (const sha of commits) {
+      const args = merges.has(sha)
+        ? ['diff-tree', '--no-commit-id', '--name-only', '--cc', '-z', sha]
+        : ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', '--root', sha];
+      for (const item of git(cwd, args).out.split('\0')) {
+        const clean = cleanString(item, 1000);
+        if (clean) touched.add(clean);
+      }
+    }
+    committed = [...touched];
   }
   const files = [...new Set([...dirty, ...committed])].sort();
-  return { git: true, branch, worktree, head, files, fingerprints: fingerprintFiles(worktree, dirty), commits };
+  return { git: true, branch, worktree, head, files, dirty, committed, fingerprints: fingerprintFiles(worktree, dirty), commits };
 }
 
 function ledgerSnapshot(cwd) {
@@ -228,19 +263,76 @@ function prune(root, now, config) {
     const updated = value?.timestamps?.updatedAt || value?.startedAt;
     if (!updated || new Date(updated).getTime() < cutoff) rmSync(path, { force: true });
   }
+  // Presence only means anything inside the active window; a day is generous and keeps the dir small.
+  const presenceCutoff = new Date(now).getTime() - 86400000;
+  for (const path of presenceFiles(root)) {
+    const value = readJson(path);
+    if (!value?.updatedAt || new Date(value.updatedAt).getTime() < presenceCutoff) rmSync(path, { force: true });
+  }
+}
+
+function presenceFiles(root) {
+  const dir = join(root, 'presence');
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir).filter((name) => name.endsWith('.json')).map((name) => join(dir, name));
+}
+
+const PRESENCE_FIELDS = ['schemaVersion', 'sessionId', 'target', 'branch', 'worktree', 'updatedAt'];
+
+/**
+ * "A session is here", written on every event from the first one (team simulation W2). The journal
+ * only writes a RECORD once there is work, so a session that had just started — or was still reading
+ * before its first edit — was invisible, and a second session opened twenty seconds later was never
+ * told to isolate. A record cannot carry this: resume would hand that empty record to the next
+ * session as "your continuation". So presence is its own tiny file: who and where, never what — no
+ * prompt, no file, no content (P3) — and it is removed when the session ends.
+ */
+function writePresence(root, storageId, presence) {
+  const value = Object.fromEntries(PRESENCE_FIELDS.map((key) => [key, presence[key] ?? null]));
+  if (Object.values(value).some((item) => secretShaped(item))) return;
+  atomicJson(join(root, 'presence', `${storageId}.json`), value);
+}
+
+function readPresence(root) {
+  return presenceFiles(root).map(readJson).filter((item) => item && item.schemaVersion === 1
+    && typeof item.sessionId === 'string' && typeof item.updatedAt === 'string'
+    && Object.keys(item).every((key) => PRESENCE_FIELDS.includes(key)));
+}
+
+// Where a session is, in the parent project's terms: the worktree under `<project>/.worktrees/` that
+// holds `path`, or null when `path` is not inside one.
+function nestedWorktreeOf(project, path) {
+  if (!path) return null;
+  const rel = relativeSlash(project, path);
+  if (!rel.startsWith('.worktrees/')) return null;
+  // git needs a directory to stand in: the file's own folder, or the nearest one that exists yet.
+  let probe = existsSync(path) && statSync(path).isDirectory() ? path : dirname(path);
+  while (!existsSync(probe)) {
+    const parent = dirname(probe);
+    if (parent === probe) return null;
+    probe = parent;
+  }
+  const top = git(probe, ['rev-parse', '--show-toplevel']);
+  if (!top.ok) return null;
+  const worktree = resolve(top.out);
+  return relativeSlash(project, worktree).startsWith('.worktrees/') ? worktree : null;
 }
 
 function noticeText(info) {
+  if (info.reason === 'placeholder-worklog') return null; // nothing the person needs to know
   if (info.reason === 'tracked-worklog') return 'rsc memory: tracked worklog detected; using ignored local state instead.';
   if (info.reason === 'untracked-worklog') return 'rsc memory: using the ignored wiki worklog store.';
   if (info.reason === 'without-git') return 'rsc memory: running without git; branch and commit metadata are unavailable.';
   if (info.reason === 'local-state-tracked') return 'rsc memory: .rsc memory was tracked; using git-private local state.';
-  return 'rsc memory: no wiki worklog found; using ignored local state.';
+  // The ordinary case (no wiki worklog, local state) is not news: said to every new clone it was noise
+  // (second team simulation), like the placeholder case above.
+  return null;
 }
 
 function consumeNotice(info) {
   const marker = join(info.root, `.notice-${info.reason}`);
   if (existsSync(marker)) return null;
+  if (!noticeText(info)) return null;
   writeFileSync(marker, `${iso()}\n`, { mode: 0o600 });
   return noticeText(info);
 }
@@ -267,8 +359,10 @@ export const ACTIVE_WINDOW_MS = 30 * 60 * 1000;
  * never WHAT is in the project (constitution P3), reads only the local journal (no network, no
  * content), and its worst failure is one worktree too many or too few.
  *
- * A session that only talks has no record — the journal only writes when there is work — and that is
- * the right blind spot: the harm this prevents is switching branches under a session that is EDITING.
+ * A session that only talks has no RECORD — the journal only writes when there is work — but it has a
+ * PRESENCE from its first event, so a session opened seconds after another one is still told to
+ * isolate (team simulation W2). Sessions are counted where they are NOW: one that moved into
+ * `.worktrees/<b>/` no longer counts in the main checkout.
  */
 export function otherActiveSessions(input = {}) {
   try {
@@ -280,12 +374,30 @@ export function otherActiveSessions(input = {}) {
     if (!existsSync(store.root)) return [];
     const now = new Date(input.now || Date.now()).getTime();
     const windowMs = Number.isFinite(input.windowMs) ? input.windowMs : ACTIVE_WINDOW_MS;
-    return readRecords(store.root)
-      .filter((r) => r.worktree === here)
-      .filter((r) => !(r.sessionId === input.sessionId && r.target === input.target))
-      .filter((r) => !r.timestamps?.completedAt)
-      .filter((r) => now - new Date(r.timestamps?.updatedAt || 0).getTime() <= windowMs)
-      .map((r) => ({ target: r.target, sessionId: r.sessionId, branch: r.branch, updatedAt: r.timestamps.updatedAt }));
+    // Each session once, at its LATEST known position: its record (work) or its presence (any event),
+    // whichever is newer. A session that moved into a worktree is no longer here, whatever an older
+    // record of it says.
+    const latest = new Map();
+    for (const r of readRecords(store.root)) {
+      latest.set(`${r.target}--${r.sessionId}`, {
+        target: r.target, sessionId: r.sessionId, branch: r.branch, worktree: r.worktree,
+        updatedAt: r.timestamps?.updatedAt, completedAt: r.timestamps?.completedAt || null,
+      });
+    }
+    for (const p of readPresence(store.root)) {
+      const key = `${p.target}--${p.sessionId}`;
+      const known = latest.get(key);
+      const newer = !known || new Date(p.updatedAt).getTime() >= new Date(known.updatedAt || 0).getTime();
+      // A presence newer than the record's close means the session came back (resumed by id).
+      if (newer) latest.set(key, { ...p, completedAt: known?.completedAt && new Date(known.completedAt).getTime() >= new Date(p.updatedAt).getTime() ? known.completedAt : null });
+    }
+    const self = (s) => s.sessionId === cleanId(input.sessionId, 'session') && s.target === input.target;
+    return [...latest.values()]
+      .filter((s) => s.worktree === here)
+      .filter((s) => !self(s))
+      .filter((s) => !s.completedAt)
+      .filter((s) => now - new Date(s.updatedAt || 0).getTime() <= windowMs)
+      .map((s) => ({ target: s.target, sessionId: s.sessionId, branch: s.branch, updatedAt: s.updatedAt }));
   } catch {
     return [];
   }
@@ -322,7 +434,7 @@ export function capture(input = {}) {
   // The second has to be asked of git from where the agent actually works: asked from the harness,
   // every worktree nested under it came back as the harness itself, and a sibling's record then
   // "matched exactly". See GHSA-8gjp-3r7c-33f4.
-  const here = resolve(input.worktreeCwd || cwd);
+  let here = resolve(input.worktreeCwd || cwd);
   const config = settings(input.settings);
   if (!config.enabled) return { record: null, path: null, notice: null, compactionHint: false };
   const store = chooseMemoryRoot(cwd);
@@ -338,7 +450,33 @@ export function capture(input = {}) {
   const recordPath = join(store.root, 'sessions', `${storageId}.json`);
   let anchor = readJson(anchorPath);
   let existing = readJson(recordPath);
+  // A session that moved into `.worktrees/<b>/` is THERE, also on the events that do not say so.
+  // An edit names its file — the first sign of the move when the agent writes by absolute path and
+  // its cwd never changed — and `Stop`/`SessionEnd` name nothing, so the move is remembered on the
+  // anchor until the session edits the main checkout again. Without this the record stayed on the
+  // main checkout, open, and every later session there was told for half an hour that someone was
+  // working beside it (team simulation W1).
+  const projectTop = git(cwd, ['rev-parse', '--show-toplevel']);
+  const project = projectTop.ok ? resolve(projectTop.out) : cwd;
+  const fileHint = typeof input.filePath === 'string' && isAbsolute(input.filePath) ? resolve(input.filePath) : null;
+  let movedTo = anchor?.movedTo || null;
+  const fromFile = nestedWorktreeOf(project, fileHint);
+  if (fromFile) here = fromFile;
+  const nestedHere = nestedWorktreeOf(project, here);
+  if (nestedHere) movedTo = nestedHere;
+  else if (fileHint && !relativeSlash(project, fileHint).startsWith('..')) movedTo = null; // back in the main checkout
+  else if (movedTo && existsSync(movedTo)) here = movedTo;
+  else movedTo = null;
   const firstSnapshot = snapshot(here, null);
+  // Presence: on every event, before any early return — the point is to be seen before there is work.
+  const ending = ['end', 'sessionEnd', 'stop'].includes(input.event);
+  if (ending) rmSync(join(store.root, 'presence', `${storageId}.json`), { force: true });
+  else {
+    writePresence(store.root, storageId, {
+      schemaVersion: 1, sessionId, target, branch: cleanString(firstSnapshot.branch, 255),
+      worktree: cleanString(firstSnapshot.worktree, 1000), updatedAt: now,
+    });
+  }
   if (!anchor) {
     anchor = {
       sessionId,
@@ -346,7 +484,12 @@ export function capture(input = {}) {
       baselineHead: cleanString(input.baselineHead, 64) || firstSnapshot.head,
       baselineFiles: firstSnapshot.files,
       baselineFingerprints: firstSnapshot.fingerprints,
+      ...(movedTo ? { movedTo } : {}),
     };
+    atomicJson(anchorPath, anchor);
+  } else if ((anchor.movedTo || null) !== movedTo) {
+    const { movedTo: _previous, ...rest } = anchor;
+    anchor = movedTo ? { ...rest, movedTo } : rest;
     atomicJson(anchorPath, anchor);
   }
   if (input.event === 'start' && !existing) return { record: null, path: null, notice: null, compactionHint: false };
@@ -391,7 +534,11 @@ export function capture(input = {}) {
     worktree: cleanString(repo.worktree, 1000),
     baselineHead: cleanString(anchor.baselineHead, 64),
     head: cleanString(repo.head, 64),
-    files: repo.files.filter((item) => !secretShaped(item)),
+    // What THIS session touched: what it committed, plus what is dirty now and was not dirty — or not
+    // this content — when it started. The plain union listed whatever an install had left untracked,
+    // so a session that never opened `.rsc.json` reported it as its work (E2E 2026-10-07).
+    files: [...new Set([...repo.committed, ...repo.dirty.filter((path) => !baselineFiles.has(path)
+      || baselineFingerprints[path] !== repo.fingerprints[path])])].sort().filter((item) => !secretShaped(item)),
     commits: repo.commits.filter((item) => !secretShaped(item)),
     ledger: ledgerSnapshot(cwd),
     timestamps: { startedAt: anchor.startedAt, updatedAt: now, completedAt: completed },
@@ -455,19 +602,46 @@ function truncateUtf8(text, maxBytes) {
   return output;
 }
 
-function renderContext(record, match, lessons, config) {
+// WHAT the last session did, not only where it stopped: the subjects of its commits and the next step
+// its feature document wrote down. Read at resume time from git and the document — never from the
+// prompts, which the record promises not to keep — so the record's closed schema does not change.
+function subjects(cwd, commits) {
+  return commits.slice(0, 8).map((sha) => {
+    const out = git(cwd, ['log', '-1', '--format=%h %s', sha]);
+    return out.ok ? cleanString(out.out, 160) : cleanString(sha.slice(0, 7), 7);
+  }).filter((item) => item && !secretShaped(item));
+}
+
+function nextSteps(cwd, files) {
+  const out = [];
+  for (const rel of files.filter((f) => /^02-DOCS\/wiki\/(ftd|sdd\/(specs|plans|progress))\/[^/]+\.md$/u.test(f)).slice(0, 3)) {
+    let body = '';
+    try { body = readFileSync(join(cwd, rel), 'utf8'); } catch { continue; }
+    const section = body.match(/^##\s*(Next|Siguiente|Próximo)[^\n]*\n+([\s\S]*?)(?=\n##\s|$)/imu)?.[2];
+    const first = section?.split('\n').map((l) => l.replace(/^[-*]\s*/u, '').trim()).find(Boolean);
+    const open = (body.match(/^- \[ \]/gmu) || []).length;
+    if (first || open) out.push(`${rel}: ${first ? cleanString(first, 200) : 'no next step written'}${open ? ` (${open} open)` : ''}`);
+  }
+  return out;
+}
+
+function renderContext(record, match, lessons, config, cwd = process.cwd()) {
   if (!record && !lessons.length) return '';
+  const done = record ? subjects(cwd, record.commits) : [];
+  const next = record ? nextSteps(cwd, record.files) : [];
   const lines = record ? [
     `[rsc local ${match} continuation]`,
-    `source: ${record.target}/${record.sessionId}`,
+    `source: ${record.target}/${record.sessionId} (${record.timestamps.startedAt} → ${record.timestamps.updatedAt})`,
     `branch: ${record.branch || 'unavailable'}`,
     `worktree: ${record.worktree || 'unavailable'}`,
     `head: ${record.head || 'unavailable'}`,
+    `done: ${done.length ? done.join(' | ') : 'no commits'}`,
     `files: ${record.files.join(', ') || 'none'}`,
-    `commits: ${record.commits.join(', ') || 'none'}`,
+    ...(next.length ? [`next: ${next.join(' | ')}`] : []),
   ] : ['[rsc local approved lessons]'];
   if (record?.ledger.length) lines.push(`ledger: ${record.ledger.map((item) => `${item.path}=${item.status}/${item.openItems}`).join(', ')}`);
-  if (record) lines.push(`metrics: cost=${record.cost ?? 'unknown'} toolCalls=${record.toolCalls ?? 'unknown'}`);
+  // Only when something is known: «cost=unknown toolCalls=unknown» on every resume told the model nothing.
+  if (record && (record.cost != null || record.toolCalls != null)) lines.push(`metrics: cost=${record.cost ?? 'unknown'} toolCalls=${record.toolCalls ?? 'unknown'}`);
   if (record?.concurrent) lines.push('parallel sessions detected; this record was not merged with them.');
   for (const lesson of lessons) lines.push(`approved lesson (${lesson.confidence}): ${lesson.text}`);
   return truncateUtf8(`${lines.join('\n')}\n`, config.contextBytes);
@@ -497,7 +671,7 @@ export function resume(input = {}) {
     if (record) match = 'nearby';
   }
   const lessons = selectedLessons(store.root, config);
-  return { match, record, lessons, context: renderContext(record, match, lessons, config) };
+  return { match, record, lessons, context: renderContext(record, match, lessons, config, here) };
 }
 
 export function learn(input = {}) {
@@ -530,10 +704,11 @@ export function metricsSummary(input = {}) {
     cost: sessions.filter((row) => row.cost === null).length,
     toolCalls: sessions.filter((row) => row.toolCalls === null).length,
   };
-  const knownTotal = {
-    cost: sessions.reduce((sum, row) => sum + (row.cost ?? 0), 0),
-    toolCalls: sessions.reduce((sum, row) => sum + (row.toolCalls ?? 0), 0),
-  };
+  // A sum over nothing known is unknown, not zero: doctor printed `cost: 0` for three sessions whose
+  // cost nobody had measured.
+  const knownSum = (key) => (unknown[key] === sessions.length ? null
+    : sessions.reduce((sum, row) => sum + (row[key] ?? 0), 0));
+  const knownTotal = { cost: knownSum('cost'), toolCalls: knownSum('toolCalls') };
   const total = {
     cost: !sessions.length || unknown.cost ? null : knownTotal.cost,
     toolCalls: !sessions.length || unknown.toolCalls ? null : knownTotal.toolCalls,

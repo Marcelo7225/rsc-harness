@@ -248,7 +248,14 @@ export function buildOnboardingPlan(record, evidence) {
   // in an invoicing workspace, and `init` promises it by technical level: non-technical and mixed get
   // it, whatever the project is. The guard also decides at runtime from the profile, so the plan only
   // chooses whether it is present, never whether it bites.
-  const dangerGuard = normalized.technicalLevel !== 'technical';
+  //
+  // And since 3.0.8 it is present for EVERYONE. A technical user used to get nothing, so a small
+  // project with `main` open had no guard at all (E2E 2026-10-07). The runtime still decides the
+  // bite: deny for non-technical, `ask` — only on lost work or rewritten history — for technical.
+  const dangerGuard = true;
+  // The FTD/SDD lane decision belongs to every software project, small ones included: without it
+  // the agent never sees the lanes (E2E 2026-10-07: five sessions, zero feature documents).
+  const laneGate = isSoftware;
   // `sdd` is installed everywhere now, but its DECISION is about practice, not presence — so where
   // the chain is not practised the explicit `deferred` entry below must be the only one, or the
   // generic "installed → selected" mapping would shadow it and `reassess` would see nothing to watch.
@@ -269,9 +276,16 @@ export function buildOnboardingPlan(record, evidence) {
   // so the chain is always one request away; this decision is what `reassess` watches, and what the
   // floor reads. Collapsing the two would have deleted reassess's reason to exist as a side effect
   // of an installer change, which is not a decision an installer change gets to make.
-  if (!practisesSdd) decisions.push(deferred('sdd', 'workflow', isSoftware
-    ? 'The software scope is small, so specification overhead is not justified yet.'
-    : 'SDD applies to substantial software work, which is not the declared project purpose.', sddTriggers, softwareTriggers));
+  // The reason says both halves, because the plan lists `.claude/skills/sdd` under managed paths
+  // and a bare "deferred" next to it read as a contradiction (E2E 2026-10-07). Only the wording
+  // changes: the decision stays the one deferred `workflow/sdd` entry that reassess watches.
+  const whyDeferred = isSoftware
+    ? 'the software scope is small, so specification overhead is not justified yet.'
+    : 'SDD applies to substantial software work, which is not the declared project purpose.';
+  const sddReason = skills.includes('sdd')
+    ? `The sdd skill is installed, so the chain is one request away; the practice is deferred: ${whyDeferred}`
+    : whyDeferred.charAt(0).toUpperCase() + whyDeferred.slice(1);
+  if (!practisesSdd) decisions.push(deferred('sdd', 'workflow', sddReason, sddTriggers, softwareTriggers));
   if (baseAgents) {
     for (const id of agents) decisions.push(selected(id, 'agent', 'The accepted substantial software workflow requires this implementation or review role.'));
   } else {
@@ -296,6 +310,7 @@ export function buildOnboardingPlan(record, evidence) {
     codeHooks: practisesSdd,
     gitmojiGuard,
     dangerGuard,
+    laneGate,
     memory: true,
     context7: false,
   };

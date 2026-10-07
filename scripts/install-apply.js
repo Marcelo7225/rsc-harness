@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { rmSync, existsSync, cpSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync, appendFileSync, readdirSync } from 'node:fs';
+import { rmSync, rmdirSync, existsSync, cpSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFileSync, appendFileSync, readdirSync, renameSync } from 'node:fs';
 import { join, dirname, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -16,6 +16,7 @@ import { withDefaultSkillFloor } from './lib/default-skill-floor.js';
 import { isRetired, replaceRetired } from './lib/retired-skills.js';
 import { readManifest, writeManifest } from './lib/manifest-file.js';
 import { createBackup } from './lib/backups.js';
+import { removeUnmodifiedSkeleton } from './lib/tools-skeleton.js';
 import {
   targetHasCommands, resolveCommands, reconcileCommands, commandPath, allPotentialCommandNames,
 } from '../targets/commands.js';
@@ -81,6 +82,7 @@ export function generatedHookFiles({ target, cwd, policy }) {
     join(cwd, '.rsc', 'session-start.mjs'),
     join(cwd, '.rsc', 'worklog-checkpoint.mjs'),
     join(cwd, '.rsc', 'hook-once.mjs'),
+    join(cwd, '.rsc', 'shell-unwrap.mjs'),
     join(cwd, '.rsc', 'worktree-reaper.mjs'),
     join(cwd, '.rsc', 'auto-update.mjs'),
     // team-safe-default: the 3.0 start-up duties and the trunk policy (also read by branch-guard).
@@ -90,12 +92,14 @@ export function generatedHookFiles({ target, cwd, policy }) {
   // The danger guard is declared on its own terms (#273): present unless the plan says otherwise,
   // whether or not the code guards are.
   const danger = policy?.dangerGuard === false ? [] : [join(cwd, '.rsc', 'danger-guard.mjs')];
-  if (policy?.codeHooks === false) return [...lifecycle, ...danger, join(cwd, '.rsc', 'suggest-always-on.md')];
+  const laneGate = policy?.laneGate ?? policy?.codeHooks !== false;
+  const lane = laneGate ? [join(cwd, '.rsc', 'userprompt-gate.mjs'), join(cwd, '.rsc', 'ftd-nudge.mjs')] : [];
+  if (policy?.codeHooks === false) return [...lifecycle, ...danger, ...(laneGate ? lane : [join(cwd, '.rsc', 'suggest-always-on.md')])];
   return [...lifecycle, ...danger,
     join(cwd, '.rsc', 'ship-guard.mjs'),
     join(cwd, '.rsc', 'branch-guard.mjs'),
     join(cwd, '.rsc', 'gitmoji-guard.mjs'), join(cwd, '.rsc', 'userprompt-gate.mjs'),
-    join(cwd, '.rsc', 'sello.mjs')];
+    join(cwd, '.rsc', 'sello.mjs'), ...(laneGate ? [join(cwd, '.rsc', 'ftd-nudge.mjs')] : [])];
 }
 
 export function managedPathsForInstall({ skillIds, agentIds = [], target, home, cwd, policy }) {
@@ -335,6 +339,7 @@ export async function applyInstall({ skillIds = [], agentIds = [], target, home,
     alwaysOn: policy.alwaysOn !== false,
     codeHooks: policy.codeHooks !== false,
     dangerGuard: policy.dangerGuard !== false,
+    laneGate: policy.laneGate ?? policy.codeHooks !== false,
     gitmojiGuard: policy.gitmojiGuard !== false,
     memory: policy.memory !== false,
     context7: policy.context7 === true,
@@ -402,7 +407,12 @@ export function ignoreLocalState(cwd = process.cwd(), target) {
   // whole directory would quietly stop versioning their work, which is the same sin this
   // release exists to fix: treating what is theirs as if it were ours. So shared
   // directories are excluded entry by entry, and only the entries rsc manages.
-  const wanted = ['.rsc/'];
+  // `.worktrees/` is where the isolation rule sends every concurrent session (`git worktree add
+  // .worktrees/<branch>`). Nothing ignored it, so in a teammate's clone it surfaced as `?? .worktrees/`
+  // — one `git add -A` from committing a whole checkout (team simulation D9). It goes in THIS block,
+  // the committed one, so every clone inherits it with its first pull; `.git/info/exclude` would
+  // only ever cover the machine that ran the installer.
+  const wanted = ['.rsc/', '.worktrees/'];
   if (target) {
     const paths = targetPaths(target, undefined, cwd);
     const rel = (abs) => relative(cwd, abs).split(sep).join('/');
@@ -697,6 +707,11 @@ export async function syncInstalled({ target, home, cwd = process.cwd(), dryRun 
     policy: manifest?.onboarding?.plan?.policy,
     onboarding: manifest?.onboarding,
   });
+  // A teammate never runs onboarding — the harness arrives in the clone — so the exclude onboarding
+  // writes for the personal profile never reached them, and their first answer to the one onboarding
+  // question sat untracked, one `git add -A` from the team repo (team simulation D13). Sync is what a
+  // clone runs, so it writes the same exclude. Lazy import: onboarding-apply imports this module.
+  try { (await import('./lib/onboarding-apply.js')).excludePersonalProfile(cwd); } catch { /* not a repo → nothing */ }
   return { synced: declared, syncedAgents: declaredAgents, backup: nextState.backup };
 }
 
@@ -706,13 +721,58 @@ export async function syncInstalled({ target, home, cwd = process.cwd(), dryRun 
 // own knowledge — kept unless `withDocs` is set. Returns the paths touched.
 // Note: backups live under `.rsc/backups/`, which this removes — so purge does not
 // snapshot (a pre-purge backup would delete itself). It is the deliberate escape hatch.
-export async function purge({ home, cwd = process.cwd(), withDocs = false, dryRun = false } = {}) {
-  const removed = [];
+export async function purge(options = {}) {
+  const report = await purgeReport(options);
+  return [...report.removed, ...report.cleaned];
+}
+
+// A config file whose only content was rsc's is not "cleaned" when the rsc entries leave it as `{}`:
+// it is a stub nobody asked for, and calling it removed while it sits on disk is the lie the E2E
+// caught. `$schema` and `version` are format boilerplate rsc itself adds, not user content.
+function emptyConfig(file) {
+  let value;
+  try { value = JSON.parse(readFileSync(file, 'utf8')); } catch { return false; }
+  const empty = (v) => (Array.isArray(v) ? v.every(empty)
+    : v && typeof v === 'object' ? Object.values(v).every(empty) : false);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const rest = Object.fromEntries(Object.entries(value).filter(([k]) => k !== '$schema' && k !== 'version'));
+  return empty(rest);
+}
+
+const RSC_IGNORE_HEADER = '# rsc local state (hooks, seals, logs) and managed skill links — machine-local';
+
+// Remove the blocks `ignoreLocalState` appended: the header line, the entries under it up to the
+// next blank line, and the blank seam before it. Lines the user wrote are never part of a block.
+function stripIgnoreBlocks(text) {
+  const lines = text.split('\n');
+  const out = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i] !== RSC_IGNORE_HEADER) { out.push(lines[i]); continue; }
+    if (out.length && out[out.length - 1] === '') out.pop();
+    while (i + 1 < lines.length && lines[i + 1].trim() !== '') i++;
+  }
+  return out.join('\n');
+}
+
+/**
+ * Remove EVERYTHING rsc put in this project and say exactly what happened to each thing:
+ *   removed — gone from disk;
+ *   cleaned — rsc's entries taken out, the file kept because something of the user's remains;
+ *   kept    — left on purpose, with the reason (and the command, when it is the user's call).
+ * `02-DOCS/` is the user's own knowledge — kept unless `withDocs` is set. Remote branches are never
+ * deleted from here. Backups live under `.rsc/backups/`, which this removes — so purge does not
+ * snapshot (a pre-purge backup would delete itself). It is the deliberate escape hatch.
+ */
+export async function purgeReport({ home, cwd = process.cwd(), withDocs = false, dryRun = false } = {}) {
+  const removed = new Set();
+  const cleaned = new Set();
+  const kept = [];
   const drop = (p, recursive = false) => {
-    if (!existsSync(p)) return;
-    removed.push(p);
+    if (!existsSync(p) && !isLink(p)) return;
+    removed.add(p);
     if (!dryRun) rmSync(p, { recursive, force: true });
   };
+  const touchedConfigs = new Set();
   for (const target of TARGET_IDS) {
     const paths = targetPaths(target, home, cwd);
     if (existsSync(paths.stateFile)) {
@@ -730,25 +790,168 @@ export async function purge({ home, cwd = process.cwd(), withDocs = false, dryRu
       }
       drop(paths.stateFile);
     }
+    const bootstrap = join(paths.projectRoot || cwd, '.claude', 'rsc-bootstrap.mjs');
+    const hadBootstrap = target === 'claude' && existsSync(bootstrap);
     // Unwiring mutates shared config files, so only run it for real (dry runs report
     // those files without touching them).
     if (!dryRun) {
-      removed.push(...unwireHook(target, paths));
-      removed.push(...unwireMemory(target, cwd));
-      removed.push(...unwireUpdate(target, cwd));
-      removed.push(...unwireKnowledge(target, cwd));
-      removed.push(...unwireGitPermissions(target, cwd));
+      for (const p of [
+        ...unwireHook(target, paths),
+        ...unwireMemory(target, cwd),
+        ...unwireUpdate(target, cwd),
+        ...unwireKnowledge(target, cwd),
+        ...unwireGitPermissions(target, cwd),
+      ]) touchedConfigs.add(p);
+      if (hadBootstrap && !existsSync(bootstrap)) removed.add(bootstrap);
     } else {
-      removed.push(...memoryArtifactsPresent(target, cwd));
-      removed.push(...updateArtifactsPresent(target, cwd));
-      removed.push(...knowledgeArtifactsPresent(target, cwd));
+      for (const p of [
+        ...memoryArtifactsPresent(target, cwd),
+        ...updateArtifactsPresent(target, cwd),
+        ...knowledgeArtifactsPresent(target, cwd),
+      ]) touchedConfigs.add(p);
+      if (paths.hookTarget && existsSync(paths.hookTarget)
+        && /\.rsc\/|rsc-suggest:start|skills\/rsc\/suggest/.test(readFileSync(paths.hookTarget, 'utf8').replaceAll('\\\\', '/'))) {
+        touchedConfigs.add(paths.hookTarget);
+      }
+      if (hadBootstrap) removed.add(bootstrap);
     }
     // A lost state file also loses proof of ownership. Leave same-named user files
     // behind rather than guessing from a catalog id and deleting their work.
   }
-  drop(join(cwd, '.rsc'), true);
+  const rscDir = join(cwd, '.rsc');
+  for (const p of touchedConfigs) {
+    if (p === rscDir || p.startsWith(`${rscDir}${sep}`)) { removed.add(p); continue; }
+    if (dryRun) { if (existsSync(p)) cleaned.add(p); continue; }
+    if (!existsSync(p)) { removed.add(p); continue; }
+    let body = '';
+    try { body = readFileSync(p, 'utf8'); } catch { /* unreadable: leave it, call it cleaned */ }
+    if (/\.json$/i.test(p) ? emptyConfig(p) : body.trim() === '') {
+      rmSync(p, { force: true });
+      removed.add(p);
+    } else cleaned.add(p);
+  }
+
+  // The `.gitignore` block rsc appended. The file goes only if nothing of the user's is left in it.
+  const gitignore = join(cwd, '.gitignore');
+  if (existsSync(gitignore)) {
+    const text = readFileSync(gitignore, 'utf8');
+    if (text.includes(RSC_IGNORE_HEADER)) {
+      const rest = stripIgnoreBlocks(text);
+      if (rest.trim() === '') { removed.add(gitignore); if (!dryRun) rmSync(gitignore, { force: true }); }
+      else { cleaned.add(gitignore); if (!dryRun) writeFileSync(gitignore, rest.endsWith('\n') ? rest : `${rest}\n`); }
+    }
+  }
+
+  // The committed declaration of the harness that no longer exists.
+  drop(join(cwd, '.rsc.json'));
+
+  // The `01-TOOLS/` scaffolding onboarding wrote, only where nobody has touched it.
+  const skeleton = removeUnmodifiedSkeleton(cwd, { dryRun });
+  for (const rel of skeleton.removed) removed.add(join(cwd, rel));
+  for (const k of skeleton.kept) kept.push(k);
+
+  drop(rscDir, true);
   if (withDocs) drop(join(cwd, '02-DOCS'), true);
-  return [...new Set(removed)];
+  else if (existsSync(join(cwd, '02-DOCS'))) kept.push({ path: '02-DOCS/', reason: 'your knowledge base. Add --with-docs to remove it too.' });
+
+  // Lines rsc added to `.git/info/exclude` for files that are now gone.
+  const exclude = gitExcludeFile(cwd);
+  if (exclude && existsSync(exclude)) {
+    const gone = new Set([...removed].map((p) => `/${relative(cwd, p).split(sep).join('/')}`));
+    const lines = readFileSync(exclude, 'utf8').split('\n');
+    const keptLines = lines.filter((l) => !(gone.has(l.trim()) || l.trim().startsWith('/.rsc/')));
+    if (keptLines.length !== lines.length) {
+      cleaned.add(exclude);
+      if (!dryRun) writeFileSync(exclude, keptLines.join('\n'));
+    }
+  }
+
+  // Directories that only held what was just removed. Deepest first; never `cwd` itself.
+  const parents = new Set();
+  for (const p of removed) {
+    for (let d = dirname(p); d !== cwd && d.startsWith(`${cwd}${sep}`); d = dirname(d)) parents.add(d);
+  }
+  const ordered = [...parents].sort((a, b) => b.split(sep).length - a.split(sep).length);
+  const willBeEmpty = (dir) => {
+    try {
+      return readdirSync(dir).every((name) => {
+        const child = join(dir, name);
+        return removed.has(child);
+      });
+    } catch { return false; }
+  };
+  for (const dir of ordered) {
+    if (!existsSync(dir) || isLink(dir)) continue;
+    if (dryRun ? willBeEmpty(dir) : readdirSync(dir).length === 0) {
+      if (!dryRun) rmdirSync(dir);
+      removed.add(dir);
+    }
+  }
+
+  // The knowledge exchange branch lives on the remote, which is shared: deleting it is the user's
+  // call, so say it exists and hand them the command.
+  for (const ref of gitLines(cwd, ['for-each-ref', '--format=%(refname)', 'refs/remotes/*/rsc/knowledge', 'refs/heads/rsc/knowledge'])) {
+    const remote = /^refs\/remotes\/([^/]+)\/rsc\/knowledge$/.exec(ref)?.[1];
+    if (remote) kept.push({ path: `${remote}/rsc/knowledge`, reason: `remote branch; rsc never deletes remote branches. To delete it: git push ${remote} --delete rsc/knowledge` });
+    else kept.push({ path: 'rsc/knowledge', reason: 'local branch. To delete it: git branch -D rsc/knowledge' });
+  }
+
+  // The post-merge hook rsc installs (worktree-reaper.mjs). It lives in git's private hooks dir, so it
+  // is per clone, never committed — and left behind it kept calling a reaper that no longer exists.
+  // Only a hook carrying rsc's marker is touched; one rsc had chained aside is put back in place.
+  const [hooks] = gitLines(cwd, ['rev-parse', '--path-format=absolute', '--git-path', 'hooks']);
+  const hook = hooks ? join(hooks, 'post-merge') : null;
+  if (hook && existsSync(hook)) {
+    let body = '';
+    try { body = readFileSync(hook, 'utf8'); } catch { /* unreadable → not provably ours */ }
+    if (body.includes('# rsc-managed worktree cleanup (post-merge)')) {
+      const chained = join(hooks, 'post-merge.rsc-local');
+      if (existsSync(chained)) {
+        cleaned.add(hook);
+        if (!dryRun) { rmSync(hook, { force: true }); renameSync(chained, hook); }
+      } else drop(hook);
+    }
+  }
+
+  // The project's instruction files are never purge's to delete. Say so, so the report accounts for them.
+  for (const name of ['CLAUDE.md', 'AGENTS.md']) {
+    const file = join(cwd, name);
+    if (existsSync(file) && !removed.has(file) && !cleaned.has(file)) {
+      kept.push({ path: name, reason: 'your project instructions; purge never deletes them. If they still mention rsc or 02-DOCS, edit those lines by hand.' });
+    }
+  }
+
+  // A path that is both removed and cleaned was cleaned, then emptied, then removed.
+  for (const p of removed) cleaned.delete(p);
+  // `.rsc/` is rsc's own directory and goes whole: listing its files one by one adds noise, not truth.
+  if (removed.has(rscDir)) for (const p of [...removed]) if (p.startsWith(`${rscDir}${sep}`)) removed.delete(p);
+
+  // What of the removed or cleaned is COMMITTED. On a teammate's clone that is most of it (.rsc.json,
+  // .claude/settings.json, the bootstrap…): changing it here is local, committing the changes
+  // uninstalls rsc for everyone who pulls (team simulation D15). The index still has them after the
+  // delete, so this reads the same in a dry run and a real one.
+  const gone = new Set([...removed, ...cleaned].map((p) => relative(cwd, p).split(sep).join('/')));
+  const under = (file) => { for (let d = file; d && d !== '.'; d = d.includes('/') ? d.slice(0, d.lastIndexOf('/')) : '') if (gone.has(d)) return true; return false; };
+  const listed = spawnSync('git', ['ls-files', '-z'], { cwd, encoding: 'utf8' });
+  const tracked = listed.status === 0
+    ? listed.stdout.split('\0').filter(Boolean).filter(under) : [];
+  return { removed: [...removed], cleaned: [...cleaned], kept, tracked };
+}
+
+function isLink(p) {
+  try { return lstatSync(p).isSymbolicLink(); } catch { return false; }
+}
+
+function gitLines(cwd, args) {
+  try {
+    const r = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    return r.status === 0 ? r.stdout.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+  } catch { return []; }
+}
+
+function gitExcludeFile(cwd) {
+  const [value] = gitLines(cwd, ['rev-parse', '--git-path', 'info/exclude']);
+  return value ? resolve(cwd, value) : null;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -82,7 +82,8 @@ test('merely TALKING about a dangerous command is not running one', () => {
 test('a shell wrapper does not smuggle a real delete past the guard', () => {
   // The hole the "rm must be the executed command" rule could have opened: `bash -c "…"` really
   // does run the delete, so the wrapper is walked through rather than skipped over.
-  for (const cmd of [`bash -c "rm ${RF} /"`, `sh -c 'rm ${RF} build'`, `sudo bash -c "rm ${RF} /var"`]) {
+  for (const cmd of [`bash -c "rm ${RF} /"`, `sh -c 'rm ${RF} build'`, `sudo bash -c "rm ${RF} /var"`,
+    `eval "rm ${RF} build"`, `exec rm ${RF} build`, `FOO=1 rm ${RF} build`, `bash -c "cd /tmp && rm ${RF} junk"`]) {
     assert.equal(decide(cmd).decision, 'deny', `smuggled through a wrapper: ${cmd}`);
   }
 });
@@ -174,4 +175,52 @@ test('the materialized copy of the guard has not drifted from the source', (t) =
     readFileSync(GUARD, 'utf8'),
     'run `npx rsc sync` — this workspace is running stale guard code, not the code under test',
   );
+});
+
+// Field test 3.0.8: the profile is personal and excluded from commits, so a teammate's clone has none,
+// and the guard read every clone as a non-technical user — denials where an `ask` was owed.
+test('a clone without the personal profile takes the level the harness was installed with', () => {
+  const root = mkdtempSync(join(tmpdir(), 'rsc-dg-clone-'));
+  writeFileSync(join(root, '.rsc.json'), JSON.stringify({ onboarding: { plan: { record: { technicalLevel: 'technical' } } } }));
+  const decide = (command) => {
+    const out = spawnSync('node', [GUARD, root], { input: JSON.stringify({ tool_name: 'Bash', tool_input: { command } }), encoding: 'utf8' }).stdout;
+    return out.trim() ? JSON.parse(out).hookSpecificOutput.permissionDecision : 'allow';
+  };
+  assert.equal(decide('git reset --hard HEAD~1'), 'ask');
+  assert.equal(decide(`rm ${RF} build`), 'allow');
+  mkdirSync(join(root, '02-DOCS', 'wiki', 'harness'), { recursive: true });
+  writeFileSync(join(root, '02-DOCS', 'wiki', 'harness', 'user-profile.md'), 'technical_level: non-technical\n');
+  assert.equal(decide('git reset --hard HEAD~1'), 'deny', 'the person\'s own profile wins');
+});
+
+// Team simulation D7 (G1): a force push does not need the word "force". A `+` in front of the refspec
+// forces that one ref, and `--force-with-lease` / `--force-if-includes` are the safer forces that
+// still rewrite what the team already pulled. All of them are asked for a technical person and denied
+// for a non-technical one, like the plain flag.
+test('a force push spelled with +refspec or a lease is caught, for both levels', () => {
+  const tech = mkdtempSync(join(tmpdir(), 'rsc-dg-push-tech-'));
+  mkdirSync(join(tech, '02-DOCS', 'wiki', 'harness'), { recursive: true });
+  writeFileSync(join(tech, '02-DOCS/wiki/harness/user-profile.md'), 'technical_level: technical\n');
+  const F = `${DASH}${DASH}force`;
+  const forced = [
+    'git push origin +feat/x',
+    'git push origin +HEAD:main',
+    'git push origin feat/y +feat/x',
+    `git push ${F}-with-lease origin feat/x`,
+    `git push ${F}-with-lease=main:abc123 origin main`,
+    `git push ${F}-if-includes ${F}-with-lease origin feat/x`,
+    `git -C . push ${F} origin feat/x`,
+    `bash -c "git push origin +feat/x"`,
+  ];
+  for (const cmd of forced) {
+    const t = decide(cmd, tech);
+    assert.equal(t.decision, 'ask', `technical: not asked for ${cmd}`);
+    assert.match(t.reason, /force-push/);
+    assert.equal(decide(cmd).decision, 'deny', `non-technical: not denied ${cmd}`);
+  }
+  for (const cmd of ['git push origin feat/x', `git push ${DASH}u origin feat/x`, 'git push origin HEAD:refs/heads/a+b',
+    'echo "git push origin +feat/x"', 'git log --format=+%h']) {
+    assert.equal(decide(cmd, tech).decision, 'allow', `over-fired on ${cmd}`);
+    assert.equal(decide(cmd).decision, 'allow', `over-fired (non-technical) on ${cmd}`);
+  }
 });

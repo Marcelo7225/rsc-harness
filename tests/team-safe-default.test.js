@@ -89,6 +89,24 @@ test('tsd16 · a chain is judged the way the shell runs it (review M2/M3)', asyn
   assert.equal(await evaluate({ root: r, command: 'git status && cd .worktrees/z && git commit -m x', cwd: r }), null);
 });
 
+test('tsd16b · a commit wrapped in a shell, eval or env is still a commit on a closed trunk (E2E defect 15)', async () => {
+  const r = repo(); write(r, 'Dockerfile');
+  for (const c of [
+    'bash -c "git commit -m x"', "sh -c 'git commit -m x'", 'zsh -c "git add -A && git commit -m x"',
+    'eval "git commit -m x"', 'env FOO=1 git commit -m x', 'command git commit -m x', 'exec git merge feat/x',
+    'git -C . commit -m x', 'git -c user.name=a commit -m x', `bash -c "sh -c 'git commit -m x'"`,
+  ]) assert.match(await evaluate({ root: r, command: c, cwd: r }) ?? '', /closed for the agent/, c);
+  // Not over-blocked: text that only mentions a commit, and a wrapped commit after a branch switch.
+  for (const c of [
+    `echo "bash -c 'git commit -m x'"`, `bash -c "echo 'git commit'"`, `grep -rn "eval git commit" docs/`,
+  ]) assert.equal(await evaluate({ root: r, command: c, cwd: r }), null, c);
+  assert.equal(await evaluate({ root: r, command: 'bash -c "git switch -c feat/w && git commit -m x"', cwd: r }), null);
+  git(r, 'switch', '-q', '-c', 'feat/m');
+  assert.equal(await evaluate({ root: r, command: `git commit -m "docs: explain why bash -c 'git commit' is guarded"`, cwd: r }), null,
+    'a commit message that contains "git commit" on a branch is just a commit on a branch');
+  assert.match(await evaluate({ root: r, command: 'bash -c "git switch main && git merge feat/m"', cwd: r }) ?? '', /closed for the agent/);
+});
+
 test('tsd17 · heredoc bodies and path checkouts are not what they look like (review L1/L2)', async () => {
   const r = repo(); write(r, 'Dockerfile');
   assert.equal(await evaluate({ root: r, command: 'cat > notes.md <<EOF\nrun git commit later\nEOF', cwd: r }), null);
@@ -297,9 +315,27 @@ test('tsd37 · the rescue runs once: a commit the person makes on main later is 
 test('tsd35 · the 3.0 announcement is said once per project and machine, with every way to turn it off', async () => {
   const { teamSafeAnnouncement } = await import('../targets/team-safe-start.mjs');
   const r = repo();
-  const first = teamSafeAnnouncement(r);
+  write(r, '02-DOCS/wiki/harness/user-profile.md', '---\ntechnical_level: technical\nlanguage: es\n---\n# Perfil\n');
+  const first = teamSafeAnnouncement(r, {});
   for (const off of ['desbloquea main', 'no uses worktrees', 'pedir el otro', 'rsc knowledge-sync off']) assert.match(first, new RegExp(off));
-  assert.equal(teamSafeAnnouncement(r), '');
+  assert.equal(teamSafeAnnouncement(r, {}), '');
+});
+
+// E2E defect 12: the banner was Spanish-only, shown to everyone. The language comes from the
+// profile's `language:` field, then the locale, and is English when neither says.
+test('tsd35b · the 3.0 announcement is English unless the profile or the locale says otherwise', async () => {
+  const { teamSafeAnnouncement } = await import('../targets/team-safe-start.mjs');
+  const english = teamSafeAnnouncement(repo(), {});
+  assert.match(english, /rsc 3\.0 · team-safe by default/);
+  for (const off of ['unlock main', 'rsc isolation off', 'ask for the other', 'rsc knowledge-sync off']) assert.match(english, new RegExp(off));
+  assert.doesNotMatch(english, /díselo|desbloquea/);
+
+  assert.match(teamSafeAnnouncement(repo(), { LANG: 'es_ES.UTF-8' }), /equipo seguro por defecto/, 'Spanish locale');
+  assert.match(teamSafeAnnouncement(repo(), { LANG: 'C.UTF-8' }), /team-safe by default/, 'neutral locale → English');
+
+  const profiled = repo();
+  write(profiled, '02-DOCS/wiki/harness/user-profile.md', '---\nlanguage: English\n---\n');
+  assert.match(teamSafeAnnouncement(profiled, { LANG: 'es_ES.UTF-8' }), /team-safe by default/, 'the profile wins over the locale');
 });
 
 // ------------------------------------------------------------------ the switches a person asks for
@@ -352,4 +388,60 @@ test('tsd19 · the per-turn rule names the state of THIS project, and the branch
   assert.match(branchRuleLine(ci), /CLOSED \(CI/);
   write(ci, '.rsc/.no-trunk-guard', '');
   assert.match(branchRuleLine(ci), /OPEN/, '«main» chosen at install wins over the signals');
+});
+
+// Field tests 3.0.7 and 3.0.8: nobody ever committed .rsc.json or the Claude settings, so the harness
+// never reached a teammate. Session start says so — weekly at most, and never commits by itself.
+test('tsd40 · an uncommitted harness in a repo with a remote is pointed out, at most once a week', async () => {
+  const { harnessCommitNotice } = await import('../targets/team-safe-start.mjs');
+  const root = mkdtempSync(join(tmpdir(), 'rsc-harness-commit-'));
+  const g = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+  g('init', '-q');
+  writeFileSync(join(root, '.rsc.json'), '{}\n');
+  assert.equal(harnessCommitNotice(root), '', 'no remote: nobody to share with');
+  g('remote', 'add', 'origin', 'https://example.invalid/x.git');
+  const now = Date.parse('2026-10-07T10:00:00Z');
+  assert.match(harnessCommitNotice(root, now), /harness not committed[\s\S]*\.rsc\.json[\s\S]*Do not commit them on your own/);
+  assert.equal(harnessCommitNotice(root, now + 3600e3), '', 'not again the same week');
+  assert.match(harnessCommitNotice(root, now + 8 * 24 * 3600e3), /harness not committed/);
+  g('add', '.rsc.json');
+  g('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--no-verify', '-m', '🔧 harness');
+  assert.equal(harnessCommitNotice(root, now + 30 * 24 * 3600e3), '', 'committed: silent for good');
+});
+
+// Team simulation D7 (G1): the default branch can be moved without a commit — `git update-ref` and a
+// forced `git branch` rewrite where it points. On a closed trunk that is the same landing, unreviewed.
+test('tsd18 · moving the closed default branch by ref (update-ref, branch -f/-M/-C) is denied with the way out', async () => {
+  const r = repo(); write(r, 'Dockerfile');
+  git(r, 'switch', '-q', '-c', 'feat/x');
+  for (const command of ['git update-ref refs/heads/main HEAD', 'git update-ref -m "x" refs/heads/main abc123',
+    'git update-ref -d refs/heads/main', 'git branch -f main HEAD', 'git branch --force main', 'git -C . branch -f main feat/x',
+    'git branch -M feat/x main', 'git branch -C main', 'bash -c "git branch -f main"']) {
+    const reason = await evaluate({ root: r, command, cwd: r });
+    assert.match(reason ?? '', /closed for the agent/, `not denied: ${command}`);
+    assert.match(reason, /pull request/, 'P6: the way out is in the message');
+    assert.match(reason, /rsc main unlock/);
+  }
+  for (const command of ['git branch -f feat/y main', 'git update-ref refs/heads/feat/y HEAD', 'git branch feat/z',
+    'git branch -M old feat/new', 'git branch -d feat/x', 'grep "git branch -f main" notes.md']) {
+    assert.equal(await evaluate({ root: r, command, cwd: r }), null, `over-fired: ${command}`);
+  }
+  const simple = repo(); git(simple, 'switch', '-q', '-c', 'feat/x');
+  assert.equal(await evaluate({ root: simple, command: 'git branch -f main HEAD', cwd: simple }), null, 'an open trunk is the person\'s call');
+});
+
+// Second team simulation: nothing stopped `git push origin HEAD:main` from a feature branch; only the
+// server's branch protection did, and a repo without one would have taken it.
+test('tsd41 · pushing straight into the closed default branch by refspec is denied; ordinary pushes are not', async () => {
+  const r = repo(); write(r, 'Dockerfile');
+  git(r, 'switch', '-q', '-c', 'feat/x');
+  for (const command of ['git push origin HEAD:main', 'git push origin feat/x:main', 'git push origin feat/x:refs/heads/main',
+    'git push origin +HEAD:main', 'git push -o ci.skip origin HEAD:main', 'git push --mirror origin', 'bash -c "git push origin HEAD:main"']) {
+    assert.match((await evaluate({ root: r, command, cwd: r })) ?? '', /closed for the agent/, `not denied: ${command}`);
+  }
+  for (const command of ['git push origin feat/x', 'git push -u origin HEAD', 'git push origin HEAD:feat/x', 'git push origin main:main-backup']) {
+    assert.equal(await evaluate({ root: r, command, cwd: r }), null, `over-blocked: ${command}`);
+  }
+  const open = repo(); git(open, 'switch', '-q', '-c', 'feat/y');
+  assert.equal(await evaluate({ root: open, command: 'git push origin HEAD:main', cwd: open }), null, 'an open trunk is not guarded');
 });

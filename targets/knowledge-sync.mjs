@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Knowledge sync: `01-TOOLS/` and `02-DOCS/` stay the same on every machine of a team without anybody
-// thinking about git. What you change goes up when your turn ends; what others change comes down
-// before your next message.
+// Knowledge sync: `01-TOOLS/`, `02-DOCS/wiki/` and `02-DOCS/attachments/` (never `01-TOOLS/_TEMPLATE/`
+// nor the personal profile) stay the same on every machine of a team without anybody thinking about
+// git. What you change goes up when your turn ends; what others change comes down before your next
+// message — into a working branch, never into a default branch closed for the agent.
 //
 // It never touches the default branch (team-safe-default D: assume it is protected). Knowledge travels
 // between people through one exchange branch on the remote, `rsc/knowledge`: up to it, down from it,
@@ -12,7 +13,8 @@
 // On by default, and that is a decision with a price, so the price is kept small on purpose:
 //   - it only ever touches KNOWLEDGE paths, and never the personal profile;
 //   - it never pushes a commit that is not its own — your unpushed code stays unpushed;
-//   - every commit it makes says `[skip ci]`, so a wiki edit does not trigger a deploy;
+//   - every commit it puts on `rsc/knowledge` says `[skip ci]`, so a wiki edit does not trigger a
+//     deploy (the local copy on your branch does not: see `commitLocal`);
 //   - the first turn says it is on and how to turn it off (`rsc knowledge-sync off`, or
 //     `.rsc/.no-knowledge-sync`, a PROJECT switch that travels in `.rsc.json`).
 //
@@ -27,7 +29,8 @@
 //   - what touches THE NETWORK — fetch, push — runs detached, and never touches the working tree or
 //     the index: the push is replayed on a throwaway index on top of `rsc/knowledge` (`commit-tree`),
 //     which is also what lets it go up from whatever branch you are on without carrying that branch.
-// The cost: somebody else's change reaches you one message late.
+// The cost: somebody else's change reaches you one message late — unless the last fetch is old, and
+// then one short foreground fetch comes first (`onRequest`).
 //
 // Standalone on purpose: hooks are materialized file by file under `.rsc/`, so this imports nothing
 // but Node. Never throws into a hook; whatever goes wrong is said on the next message.
@@ -36,7 +39,7 @@ import {
   closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync, renameSync, statSync,
   unlinkSync, writeFileSync,
 } from 'node:fs';
-import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultBranchName, trunkClosed } from './trunk-policy.mjs';
 
@@ -48,17 +51,33 @@ export const OPT_OUT = '.no-knowledge-sync';
 export const SKIP_CI = '[skip ci]';
 /** The exchange branch on the remote. Fixed, in every project (spec, clarify P7). */
 export const KNOWLEDGE_BRANCH = 'rsc/knowledge';
+/** The subject of what `applyIncoming` commits: content that came FROM the exchange branch. */
+const SYNC_SUBJECT = `📥 docs(auto): sync desde ${KNOWLEDGE_BRANCH}`;
 
 const STATE = 'knowledge-sync.json';
 const LOCK = 'knowledge-sync.lock';
 const FETCH_EVERY_MS = 60_000;
+/** Older than this, the next message fetches in the foreground first (D4, team sim 2026-10-07). */
+// 3 min, not 10: at 10 a teammate's merge three minutes old was missed and a duplicate 📥 commit of a
+// doc main already had went into a feature branch (second team simulation). Offline cost: ≤3 s per 3 min.
+const STALE_FETCH_MS = 3 * 60_000;
+/** …but never waits longer than this for it: fail-open, the background fetch still follows. */
+const FOREGROUND_FETCH_MS = 3_000;
 const NET_TIMEOUT_MS = 30_000;
 const LOCAL_TIMEOUT_MS = 4_000;
 const LOCK_STALE_MS = 120_000;
 const MAX_FILES = 200;
 const KEEP_OURS = 200;
 
-export const isKnowledge = (path) => KNOWLEDGE.some((k) => path.startsWith(k)) && !PERSONAL.includes(path);
+/**
+ * rsc's own scaffolding, identical in every project: it arrives with rsc, not with a teammate. Sent up,
+ * it turned the first turn of a fresh install into a "docs" commit of CREDENTIALS.md and
+ * test_connection.sh on the working branch (E2E 2026-10-07). A team that customises the template
+ * still commits it like any file; it just does not travel on its own.
+ */
+export const SCAFFOLD = Object.freeze(['01-TOOLS/_TEMPLATE/']);
+export const isKnowledge = (path) => KNOWLEDGE.some((k) => path.startsWith(k)) && !PERSONAL.includes(path)
+  && !SCAFFOLD.some((k) => path.startsWith(k));
 
 // ------------------------------------------------------------------ git
 
@@ -105,7 +124,7 @@ const worktreeBlob = (root, path) => (existsSync(join(root, path)) ? line(root, 
 function readState(root) {
   let s = {};
   try { s = JSON.parse(readFileSync(join(root, '.rsc', STATE), 'utf8')); } catch { /* first run */ }
-  return { announced: false, seenBy: {}, queue: [], ours: [], notices: [], lastFetch: 0, snap: null, head: null, ...s };
+  return { announced: false, seenBy: {}, waiting: {}, queue: [], ours: [], notices: [], clashes: [], lastFetch: 0, snap: null, head: null, ...s };
 }
 
 function writeState(root, s) {
@@ -147,6 +166,26 @@ function listed(paths, max = 5) {
   return paths.length > max ? `${shown} y ${paths.length - max} más` : shown;
 }
 
+/**
+ * Who each file is from: the author of the newest commit that changed it, and «ti» when that commit is
+ * one of ours or carries your own git email. One name for the whole list told Bruno his own doc was
+ * Ana's (second team simulation).
+ */
+function byAuthor(root, files, touchedBy, ours) {
+  const me = line(root, ['config', 'user.email']) || '';
+  const groups = new Map();
+  for (const f of files) {
+    const last = touchedBy(f)[0]; // rev-list lists newest first
+    let who = 'ti, desde otra rama';
+    if (last && !ours.includes(last)) {
+      const [name, email] = (line(root, ['log', '-1', '--format=%an%x09%ae', last]) || '').split('\t');
+      if (name && (!me || email !== me)) who = clean(name, 30);
+    }
+    groups.set(who, [...(groups.get(who) || []), f]);
+  }
+  return [...groups].map(([who, list]) => `de ${who}: ${listed(list)}`).join('; ');
+}
+
 const authorsOf = (root, revs) => [...new Set(revs.flatMap((c) => {
   const a = line(root, ['log', '-1', '--format=%an', c]);
   return a ? [clean(a, 30)] : [];
@@ -185,10 +224,17 @@ function changedKnowledge(root) {
   return [...new Set(files)].filter(isKnowledge);
 }
 
-function summary(files) {
-  const names = [...new Set(files.map((f) => basename(f, extname(f))))].sort();
-  return listed(names, 3);
+// The subject of an auto-commit. Counted by FILE and named by full path: it used to dedupe by
+// basename-without-extension, so eight files read as "… y 4 más" and `01-TOOLS/.gitignore` was
+// indistinguishable from `01-TOOLS/_TEMPLATE/.gitignore`.
+export function commitSummary(files) {
+  const paths = [...new Set(files)].sort();
+  if (paths.length <= 1) return paths.map((p) => clean(p, 80)).join('');
+  const max = 3;
+  const shown = paths.slice(0, max).map((p) => clean(p, 80)).join(', ');
+  return `${paths.length} ficheros: ${shown}${paths.length > max ? ` y ${paths.length - max} más` : ''}`;
 }
+const summary = commitSummary;
 
 /**
  * Commit your knowledge changes so they can go up. Local and fast; returns the new SHA or null.
@@ -198,13 +244,37 @@ function summary(files) {
  * goes up like any other; the files stay modified until the agent commits on a branch (regla A).
  * Repeating it while they stay modified is a no-op upstream — the content is already there.
  */
+/**
+ * Work of the agent's own still uncommitted outside the knowledge folders. While there is, a docs
+ * commit of ours on the branch would land AHEAD of the code it describes — field test 3.0.8: an FTD
+ * update saying «Fix … probado» committed and pushed while the fix itself was still uncommitted. The
+ * harness's own files (`.claude/`, `.rsc.json`) do not count: they may stay untracked for good.
+ */
+function workPending(root) {
+  const entries = zlist(git(root, ['status', '--porcelain=v1', '-z', '--untracked-files=all']));
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    const path = e.slice(3);
+    if (e[0] === 'R' || e[0] === 'C') i++;
+    if (KNOWLEDGE.some((k) => path.startsWith(k)) || PERSONAL.includes(path)) continue;
+    if (/^(\.claude\/|\.rsc\/|\.rsc\.json$|\.worktrees\/)/.test(path)) continue;
+    return true;
+  }
+  return false;
+}
+
 export function commitLocal(root, s) {
   const branch = line(root, ['rev-parse', '--abbrev-ref', 'HEAD']);
   if (branch === 'HEAD') return null; // detached
   const files = changedKnowledge(root).slice(0, MAX_FILES);
   if (!files.length) return null;
-  const message = (names) => `📝 docs(auto): ${summary(names)} ${SKIP_CI}`;
-  if (branch === defaultBranch(root) && trunkClosed(root)) {
+  // No [skip ci] HERE: this commit lands on the working branch, often as its newest commit, and the
+  // next ordinary push of that branch would skip CI on main (E2E 2026-10-07). Only the copy on the
+  // exchange branch carries it (see `ship`).
+  const message = (names) => `📝 docs(auto): ${summary(names)}`;
+  // Closed trunk, or code of the agent's still uncommitted: no commit of ours on the branch. The
+  // snapshot goes up the same way and the files stay modified, to be committed WITH that work.
+  if ((branch === defaultBranch(root) && trunkClosed(root)) || workPending(root)) {
     const env = { GIT_INDEX_FILE: join(root, '.rsc', 'knowledge-sync.snap.index') };
     try {
       if (!run(root, ['read-tree', 'HEAD'], { env }).ok) return null;
@@ -249,8 +319,22 @@ export function queueCommitted(root, s) {
     && run(root, ['merge-base', '--is-ancestor', s.head, head]).ok;
   const from = valid ? s.head : (remoteDef && line(root, ['merge-base', 'HEAD', remoteDef]));
   if (!head || !from || from === head) return;
-  const commits = git(root, ['rev-list', '--reverse', '--no-merges', `${from}..${head}`, '--', ...KNOWLEDGE]).split('\n').filter(Boolean);
-  for (const c of commits) if (!s.queue.includes(c) && !s.ours.includes(c)) s.queue.push(c);
+  // Only what was made HERE (team sim 2026-10-07, D3). `git merge origin/main` on a feature branch
+  // brings teammates' commits into `from..head`; walked whole, they were re-sent as ours, clashed with
+  // their own newer version on rsc/knowledge, and the person was told «No he podido subir …» about a
+  // file they never wrote. So: the branch's own line (`--first-parent`: a merge's second side is not
+  // ours), nothing the remote default branch or the exchange branch already has (a rebase onto main
+  // puts teammates' commits on the first-parent line too), and never a 📥 sync commit, whose content
+  // came FROM rsc/knowledge. Not excluded: other remote branches — your own pushed feature branch
+  // holds exactly the commits that must still go up.
+  const not = [def && `refs/remotes/origin/${def}`, `refs/remotes/origin/${KNOWLEDGE_BRANCH}`]
+    .filter((r) => line(root, ['rev-parse', '--verify', '--quiet', r])).map((r) => `^${r}`);
+  const commits = git(root, ['rev-list', '--reverse', '--no-merges', '--first-parent', `${from}..${head}`, ...not, '--', ...KNOWLEDGE]).split('\n').filter(Boolean);
+  for (const c of commits) {
+    if (s.queue.includes(c) || s.ours.includes(c)) continue;
+    if (line(root, ['log', '-1', '--format=%s', c]) === SYNC_SUBJECT) continue;
+    s.queue.push(c);
+  }
 }
 
 // ------------------------------------------------------------------ network: up
@@ -299,6 +383,30 @@ function replay(root, base, sha, ours = []) {
   }
 }
 
+const clashText = (files) => `No he podido subir ${listed(files)}: choca con un cambio que ya está en ${KNOWLEDGE_BRANCH}. ` +
+  'Tu versión sigue aquí; hay que juntarlas a mano.';
+
+/**
+ * The notices, with every clash checked again first (D3). A clash is noted when the push runs and said
+ * on a later message; in between the person may have taken the other version, or the two may have
+ * converged. A file whose version here — in the working tree, or in the commit that clashed — is now
+ * the one on rsc/knowledge is no clash any more, and a notice left with no files is not said.
+ */
+function openNotices(root, s) {
+  const tip = line(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${KNOWLEDGE_BRANCH}`]);
+  const out = [];
+  for (const text of s.notices) {
+    const c = (s.clashes || []).find((x) => x.text === text);
+    if (!c || !tip) { out.push(text); continue; }
+    const open = c.files.filter((f) => {
+      const there = blob(root, tip, f);
+      return worktreeBlob(root, f) !== there && blob(root, c.sha, f) !== there;
+    });
+    if (open.length) out.push(open.length === c.files.length ? text : clashText(open));
+  }
+  return out;
+}
+
 /**
  * Put the queued commits on `rsc/knowledge`. Never the default branch; never the working tree or the
  * index. Each queued commit is replayed on top of the exchange branch (`replay`), which is how a
@@ -328,8 +436,10 @@ export function ship(root, s) {
       const tree = replay(root, base, sha, s.ours);
       if (tree === null) {
         const files = zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha, '--', ...KNOWLEDGE])).filter(isKnowledge);
-        note(s, `No he podido subir ${listed(files)}: choca con un cambio que ya está en ${KNOWLEDGE_BRANCH}. ` +
-          'Tu versión sigue aquí; hay que juntarlas a mano.');
+        const text = clashText(files);
+        note(s, text);
+        // Kept with what it is about, so it can be checked again before it is said (`openClashes`).
+        if (!s.clashes.some((c) => c.text === text)) s.clashes.push({ text, sha, files });
         continue;
       }
       if (tree === line(root, ['rev-parse', `${base}^{tree}`])) { kept.push(sha); continue; } // already there
@@ -337,7 +447,9 @@ export function ship(root, s) {
       // A commit of somebody's own (code + docs) goes up as its knowledge part, under a message that
       // says so and carries [skip ci]: its own message would describe code that is not there, and
       // would run CI on the exchange branch.
-      const body = rest.join('\n').includes(SKIP_CI) ? rest : [
+      const ownAuto = /^📝 docs\(auto\):/.test(rest[0] || '');
+      const body = ownAuto ? [`${rest[0].replace(SKIP_CI, '').trim()} ${SKIP_CI}`, ...rest.slice(1)]
+        : rest.join('\n').includes(SKIP_CI) ? rest : [
         `📝 docs(auto): ${summary(zlist(git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', sha, '--', ...KNOWLEDGE])).filter(isKnowledge))} ${SKIP_CI}`,
         '', `Desde: ${rest[0] || sha.slice(0, 7)}`];
       base = git(root, ['commit-tree', tree, '-p', base, '-F', '-'], {
@@ -363,8 +475,8 @@ export function ship(root, s) {
 // ------------------------------------------------------------------ local: their changes
 
 /**
- * Apply what others put on `rsc/knowledge`, from the last fetch — no network here — into whatever
- * branch you are on. Only knowledge paths are looked at: the exchange branch is born from the default
+ * Apply what others put on `rsc/knowledge`, from the last fetch, into the branch you are on — except a
+ * default branch closed for the agent, which is only told what is waiting (D1, below). Only knowledge paths are looked at: the exchange branch is born from the default
  * branch, so it also carries code, and code reaches you the ordinary way. Only files you have not
  * touched since; a clash is said, never forced. Never a fast-forward: that would move your local
  * default branch onto a commit the remote default branch does not have.
@@ -389,10 +501,44 @@ export function applyIncoming(root, s) {
   const commits = git(root, ['rev-list', `${seen}..${tip}`, '--', ...paths]).split('\n').filter(Boolean);
   if (!commits.length) { s.seenBy[branch] = tip; return said; }
 
+  const def = defaultBranch(root);
+  const remoteDef = def && line(root, ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${def}`]);
+  // Already on the remote default branch exactly as on rsc/knowledge (D3b): the branch gets it from
+  // the ordinary merge of main. Brought in here it would only be a duplicate 📥 commit — and on a
+  // default branch that is behind, it would turn the next fast-forward pull into a merge.
+  //
+  // What this does NOT remove (written down so nobody believes it does): a doc brought into a feature
+  // branch while it was only on rsc/knowledge, and later merged into main in a DIFFERENT version
+  // through another PR, still meets main's version add/add when that branch merges main. Avoiding it
+  // means not bringing docs into branches at all, which is the whole point of the sync; usually the
+  // newer version reaches the branch through rsc/knowledge first and the adds are identical (clean).
+  const onDefault = (f, incoming) => incoming && remoteDef && blob(root, remoteDef, f) === incoming;
   const know = zlist(git(root, ['diff', '--name-only', '--no-renames', '-z', seen, tip, '--', ...paths]))
-    .filter(isKnowledge).slice(0, MAX_FILES);
-  const closed = branch === defaultBranch(root) && trunkClosed(root);
+    .filter(isKnowledge).filter((f) => !onDefault(f, blob(root, tip, f))).slice(0, MAX_FILES);
+  const closed = branch === def && trunkClosed(root);
   const touchedBy = (f) => git(root, ['rev-list', `${seen}..${tip}`, '--', f]).split('\n').filter(Boolean);
+
+  // A default branch closed for the agent is left exactly as the remote has it (team sim 2026-10-07,
+  // D1). Nothing can be committed there, and anything written uncommitted blocks the person's next
+  // `git pull`: these same docs reach main inside merged PRs, and git refuses to merge over an
+  // untracked file ("untracked working tree files would be overwritten") AND over a modified tracked
+  // one, even when the contents are identical (checked by hand on git 2.4x). Writing only new files,
+  // or only tracked ones, still leaves one of the two. So: say what is waiting, once per new tip, and
+  // leave `seenBy` where it is — the first message on a branch opened from here catches up and
+  // commits it there, where a merge of main meets it as an ordinary change.
+  if (closed) {
+    s.waiting = s.waiting && typeof s.waiting === 'object' ? s.waiting : {};
+    if (s.waiting[branch] === tip) return said;
+    s.waiting[branch] = tip;
+    const pending = know.filter((f) => worktreeBlob(root, f) !== blob(root, tip, f));
+    if (!pending.length) return said;
+    said.push(`📥 Hay cambios de conocimiento en ${KNOWLEDGE_BRANCH} (${byAuthor(root, pending, touchedBy, s.ours)}). ` +
+      `En ${branch} (cerrada) no los escribo, porque bloquearían tu próximo git pull: llegan con el pull ` +
+      'cuando se fusionen, o a la rama que abras en su primer mensaje. ' +
+      `Para leer uno ya: git show origin/${KNOWLEDGE_BRANCH}:<fichero>.`);
+    return said;
+  }
+
   const take = [];
   const clash = [];
   for (const f of know) {
@@ -400,9 +546,7 @@ export function applyIncoming(root, s) {
     const mine = worktreeBlob(root, f);
     if (mine === incoming) continue;
     const base = blob(root, seen, f);
-    // On a closed trunk HEAD lags behind on purpose (what came in was not committed), so only the
-    // working tree says whether you touched it (review H2).
-    if (mine === base && (closed || blob(root, 'HEAD', f) === base)) take.push(f);
+    if (mine === base && blob(root, 'HEAD', f) === base) take.push(f);
     // Touched here and changed only by your own uploads: your newer version, not a clash.
     else if (touchedBy(f).some((c) => !s.ours.includes(c))) clash.push(f);
   }
@@ -412,18 +556,8 @@ export function applyIncoming(root, s) {
     const present = take.filter((f) => blob(root, tip, f));
     if (present.length) git(root, ['--literal-pathspecs', 'checkout', tip, '--', ...present]);
     if (gone.length) git(root, ['--literal-pathspecs', 'rm', '--quiet', '--', ...gone]);
-    // On a default branch closed for the agent nothing is committed there: the files are updated
-    // and travel into the next branch the agent opens (regla A).
-    if (!closed) {
-      git(root, ['--literal-pathspecs', 'commit', '--quiet', '--no-verify', '--only',
-        '-m', `📥 docs(auto): sync desde ${KNOWLEDGE_BRANCH} ${SKIP_CI}`, '--', ...take]);
-    } else {
-      git(root, ['--literal-pathspecs', 'reset', '--quiet', '--', ...take]); // updated, not staged
-    }
-    const from = [...new Set(take.flatMap(touchedBy))];
-    const theirs = from.filter((c) => !s.ours.includes(c));
-    const who = theirs.length ? authorsOf(root, theirs) : 'ti, desde otra rama';
-    said.push(`📥 Traídos ${from.length} cambio(s) de conocimiento de ${who}: ${listed(take)}.`);
+    git(root, ['--literal-pathspecs', 'commit', '--quiet', '--no-verify', '--only', '-m', SYNC_SUBJECT, '--', ...take]);
+    said.push(`📥 Traídos ${take.length} fichero(s) de conocimiento (${byAuthor(root, take, touchedBy, s.ours)}).`);
   }
   if (clash.length) {
     const who = authorsOf(root, [...new Set(clash.flatMap(touchedBy))].filter((c) => !s.ours.includes(c)));
@@ -455,22 +589,40 @@ function background(root, op) {
   } catch { /* the next turn tries again */ }
 }
 
-const ANNOUNCE = '🔄 La sincronización del conocimiento está activa: lo que cambies en 01-TOOLS/ y 02-DOCS/ ' +
-  `viaja a tu equipo por la rama ${KNOWLEDGE_BRANCH} (nunca a la principal, con [skip ci]) y lo de los demás ` +
-  'te llega a la rama en la que estés. Llega a la principal dentro de vuestras PRs. Para apagarla en este ' +
-  'proyecto: `rsc knowledge-sync off`.';
+/** Refresh what comes down: the exchange branch, and the default branch it is compared against (D3b). */
+function fetchDown(root, timeout) {
+  const def = defaultBranch(root);
+  const refspecs = [`+refs/heads/${KNOWLEDGE_BRANCH}:refs/remotes/origin/${KNOWLEDGE_BRANCH}`,
+    ...(def ? [`+refs/heads/${def}:refs/remotes/origin/${def}`] : [])];
+  // One round trip; absent upstream (no exchange branch yet) fails it, so the default goes alone.
+  if (run(root, ['fetch', '--quiet', 'origin', ...refspecs], { timeout }).ok) return true;
+  if (def) run(root, ['fetch', '--quiet', 'origin', refspecs[1]], { timeout });
+  return false;
+}
+
+const ANNOUNCE = '🔄 La sincronización del conocimiento está activa: lo que cambies en 01-TOOLS/, 02-DOCS/wiki/ ' +
+  `y 02-DOCS/attachments/ viaja a tu equipo por la rama ${KNOWLEDGE_BRANCH} (nunca a la principal; allí con ` +
+  '[skip ci]) y lo de los demás te llega a tu rama de trabajo. Llega a la principal dentro de vuestras PRs. ' +
+  'Para apagarla en este proyecto: `rsc knowledge-sync off`.';
 
 /** UserPromptSubmit: apply what was fetched, say what happened, fetch again in the background. */
 export function onRequest(root, { spawnFetch = true } = {}) {
   try {
     if (inactiveReason(root)) return '';
     let fetchDue = false;
+    // The background fetch lands AFTER the message that started it, so what comes down is one message
+    // late; a session of one message saw nothing (D4). When the last fetch is old, one bounded fetch
+    // first — outside the lock, fail-open. Otherwise no network here, so a turn stays cheap.
+    const fresh = Date.now() - readState(root).lastFetch > STALE_FETCH_MS
+      && fetchDown(root, FOREGROUND_FETCH_MS);
     const said = locked(root, (s) => {
       const out = [];
+      if (fresh) s.lastFetch = Date.now();
       if (!s.announced) { out.push(ANNOUNCE); s.announced = true; }
       try { out.push(...applyIncoming(root, s)); } catch (e) { out.push(`La sincronización del conocimiento falló al traer cambios: ${clean(e.message, 160)}`); }
-      out.push(...s.notices);
+      try { out.push(...openNotices(root, s)); } catch { out.push(...s.notices); }
       s.notices = [];
+      s.clashes = [];
       if (Date.now() - s.lastFetch > FETCH_EVERY_MS) { s.lastFetch = Date.now(); fetchDue = true; }
       return out;
     });
@@ -530,8 +682,7 @@ export function work(root, op) {
       if (op === 'ship') ship(root, s);
       else if (op === 'fetch') {
         // What comes down comes from the exchange branch; absent upstream is not an error.
-        run(root, ['fetch', '--quiet', 'origin', `+refs/heads/${KNOWLEDGE_BRANCH}:refs/remotes/origin/${KNOWLEDGE_BRANCH}`],
-          { timeout: NET_TIMEOUT_MS });
+        fetchDown(root, NET_TIMEOUT_MS);
         if (s.queue.length) ship(root, s);
       }
     } catch (e) {
@@ -565,7 +716,14 @@ export function hook(target, event, native = {}) {
     if (event === 'request') {
       const said = onRequest(root);
       if (!said) return {};
-      return target === 'cursor' ? { user_message: said } : { systemMessage: said };
+      if (target === 'cursor') return { user_message: said };
+      // The person sees it (`systemMessage`), and now the model knows it too: shown only to the person,
+      // a «📥 llegó un cambio» was news the agent could not explain when asked «¿qué cambió?» a turn
+      // later (field test 3.0.4). Same text, so what they each know is the same thing.
+      const context = { hookEventName: target === 'gemini' ? 'BeforeAgent' : 'UserPromptSubmit', additionalContext: `rsc knowledge-sync (already shown to the person):\n${said}` };
+      // DeepSeek Harness drops systemMessage and rsc's bridge turns it into context: one copy is enough.
+      if (target === 'deepseek') return { hookSpecificOutput: { ...context, additionalContext: `rsc knowledge-sync — tell the person in one line:\n${said}` } };
+      return { systemMessage: said, hookSpecificOutput: context };
     }
     // `stop_hook_active`: this turn exists because a stop hook asked for it. Nothing new to commit.
     if (event === 'turn' && !native?.stop_hook_active) onTurn(root);

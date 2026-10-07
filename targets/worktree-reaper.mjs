@@ -16,7 +16,7 @@
 //
 // Imported by `.rsc/session-start.mjs` (the sweep) and by `scripts/rsc.js` (`rsc worktrees`), so the
 // rule exists once and both entry points cannot drift apart. Same shape as `sello.mjs`.
-import { existsSync, realpathSync, mkdirSync, readFileSync, writeFileSync, renameSync, chmodSync } from 'node:fs';
+import { existsSync, realpathSync, mkdirSync, readFileSync, readdirSync, writeFileSync, renameSync, chmodSync, copyFileSync } from 'node:fs';
 import { join, resolve, dirname, basename, relative, sep } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -49,6 +49,14 @@ export const REGENERABLE = [
 // full of live credentials — read as build output and get deleted with no confirmation at all. A
 // directory name means something only as a directory.
 export const REGENERABLE_FILES = ['.DS_Store', 'Thumbs.db', '.coverage'];
+
+// rsc's OWN state inside a worktree: hook markers, knowledge-sync's index, the memory journal. It is
+// in no commit by design, so the contents check read it as work that "would be lost" and refused
+// every landed worktree a session had ever worked in (team simulation D8) — the default cleanup
+// never ran. It does not block. The one part of it that is history — the session journal — is moved
+// to the project's store before the directory goes (`adoptJournal`), never dropped.
+export const RSC_STATE = ['.rsc/', '02-DOCS/raw/worklog/.rsc-memory/'];
+const isRscState = (path) => RSC_STATE.some((prefix) => path === prefix || path === prefix.slice(0, -1) || path.startsWith(prefix));
 
 // Trunk candidates, most authoritative first. The remote tip beats a local branch that may be stale.
 const TRUNKS = ['origin/main', 'main', 'origin/master', 'master'];
@@ -251,7 +259,7 @@ export function contentOutsideHistory(wtPath) {
     // does not exist — the exact failure the `raw` comment above exists to prevent (P6).
     if (code[0] === 'R' || code[0] === 'C') { i++; dirty.push(path); continue; }
     if (code === '??' || code === '!!') {
-      if (!isRegenerable(path)) outside.push(path);
+      if (!isRegenerable(path) && !isRscState(path)) outside.push(path);
     } else dirty.push(path);
   }
   return { dirty, outside, readable: true };
@@ -355,6 +363,11 @@ export function reapWorktree(root, targetPath, { confirmed = false } = {}) {
     return { removed: false, reason: refusal(candidate) };
   }
 
+  // The journal first: if it cannot be carried home, the directory stays (fail towards keeping).
+  try { adoptJournal(root, target); } catch (err) {
+    return { removed: false, reason: `its session journal could not be moved to the project, so nothing was removed: ${err.message}` };
+  }
+
   const removal = git(root, ['worktree', 'remove', '--force', target]);
   if (!removal.ok) {
     return { removed: false, reason: `git refused to remove it: ${removal.err || removal.out}` };
@@ -380,6 +393,96 @@ export function reapWorktree(root, targetPath, { confirmed = false } = {}) {
 }
 
 /**
+ * Carry a worktree's memory journal into the project's store before the worktree is removed.
+ *
+ * Since sessions inside `.worktrees/` journal into the project's store directly, this is the net for
+ * what older versions (and any session that ran before that fix) left inside the worktree. Merge by
+ * file name, the newer record wins, nothing in the project is ever overwritten by something older.
+ * The project's store is the same one the memory picks: the ignored wiki worklog when it is in use,
+ * `.rsc/memory` otherwise.
+ */
+export function adoptJournal(root, worktreePath) {
+  const sources = [join(worktreePath, '.rsc', 'memory'), join(worktreePath, '02-DOCS', 'raw', 'worklog', '.rsc-memory')]
+    .filter((dir) => existsSync(dir));
+  if (!sources.length) return { moved: [] };
+  const worklogStore = join(root, '02-DOCS', 'raw', 'worklog', '.rsc-memory');
+  const dest = existsSync(join(worklogStore, 'sessions')) ? worklogStore : join(root, '.rsc', 'memory');
+  const stamp = (value) => new Date(value?.timestamps?.updatedAt || value?.updatedAt || value?.approvedAt || value?.startedAt || 0).getTime() || 0;
+  const read = (path) => { try { return JSON.parse(readFileSync(path, 'utf8')); } catch { return null; } };
+  const moved = [];
+  for (const source of sources) {
+    for (const kind of ['sessions', 'anchors', 'lessons']) {
+      const dir = join(source, kind);
+      if (!existsSync(dir)) continue;
+      for (const name of readdirSync(dir).filter((n) => n.endsWith('.json'))) {
+        const from = join(dir, name);
+        const to = join(dest, kind, name);
+        if (existsSync(to) && stamp(read(to)) >= stamp(read(from))) continue;
+        mkdirSync(join(dest, kind), { recursive: true });
+        copyFileSync(from, to);
+        chmodSync(to, 0o600);
+        moved.push(`${kind}/${name}`);
+      }
+    }
+  }
+  return { moved };
+}
+
+// Branches that are never a cleanup's side effect, whatever their state: the knowledge branch carries
+// 01-TOOLS/ and 02-DOCS/ to the team (knowledge-sync) and is merged into the trunk as a matter of course.
+export const KEEP_BRANCHES = ['rsc/knowledge'];
+
+/**
+ * Plain local branches whose work has landed: the half of "al fusionar se borra solo" that has no
+ * directory. E2E defect 14 (2026-10-07): a branch merged into the default branch — or whose remote
+ * branch the forge deleted after the PR, `[gone]` — stayed in `git branch` for ever, landed work
+ * looking exactly like live work.
+ *
+ * Deleted only when ALL hold, each failing towards keeping the branch:
+ *   - the cleanup is on, and a trunk resolves (the remote tip first, like the worktrees);
+ *   - it is not the default branch, a trunk name, `rsc/knowledge`, the current branch, or checked out
+ *     in ANY worktree (`branch -d` would refuse that last one anyway; we do not even ask);
+ *   - its tip is an ancestor of the trunk — no commit of its own left. Against `origin/<default>`
+ *     when there is one, so a branch merged locally but not yet pushed keeps its unpushed commits
+ *     (being ahead of its own upstream then loses nothing: those commits are on the remote trunk);
+ *   - it really carried work: a commit in its reflog, or an upstream the forge deleted. A branch cut a
+ *     moment ago is an ancestor of everything and has landed nothing (same rule as `hasLandedWork`).
+ * And then git decides: `branch -d`, never -D. A squash-merged branch is `[gone]` but has commits of
+ * its own by identity, so it is not an ancestor and stays — its commits remain recoverable.
+ *
+ * Never throws (it runs from the post-merge hook, like `autoReap`).
+ */
+export function reapMergedBranches(root) {
+  const out = { deleted: [], kept: [] };
+  try {
+    if (!isCleanupEnabled(root)) return out;
+    const trunk = resolveTrunk(root);
+    if (!trunk) return out;
+    const defaultName = trunk.replace(/^origin\//, '');
+    const current = git(root, ['symbolic-ref', '--quiet', '--short', 'HEAD']).out || null;
+    const checkedOut = new Set(listWorktrees(root).map((wt) => wt.branch).filter(Boolean));
+    const refs = git(root, ['for-each-ref', '--format=%(refname:short)%00%(upstream:track)', 'refs/heads']);
+    if (!refs.ok) return out;
+    for (const line of refs.out.split('\n').filter(Boolean)) {
+      const [branch, track = ''] = line.split('\0');
+      const keep = (reason) => out.kept.push({ branch, reason });
+      if (branch === defaultName || isTrunkName(branch) || KEEP_BRANCHES.includes(branch)) continue;
+      if (branch === current) { keep('current branch'); continue; }
+      if (checkedOut.has(branch)) { keep('checked out in a worktree'); continue; }
+      if (!git(root, ['merge-base', '--is-ancestor', `refs/heads/${branch}`, trunk]).ok) continue; // live work
+      const gone = track.includes('gone');
+      if (!gone && !hasLandedWork(root, { branch })) { keep('never carried a commit'); continue; }
+      const del = git(root, ['branch', '-d', branch]);
+      if (del.ok) out.deleted.push(branch);
+      else keep(`git branch -d refused: ${del.err || del.out}`);
+    }
+  } catch (err) {
+    out.kept.push({ branch: null, reason: `branch cleanup could not run: ${err.message}` });
+  }
+  return out;
+}
+
+/**
  * Every refusal carries the way out, because the person receiving it may not be able to deduce one (P6).
  *
  * EVERY reason, not the first one recorded. A worktree that is both dirty and holding an untracked
@@ -401,7 +504,7 @@ export function reapWorktree(root, targetPath, { confirmed = false } = {}) {
  *  - it is silent when there is nothing to do, so the common merge prints nothing.
  */
 export function autoReap(root) {
-  const result = { reaped: [], skipped: [], disabled: false };
+  const result = { reaped: [], skipped: [], disabled: false, branches: { deleted: [], kept: [] } };
   try {
     if (!isCleanupEnabled(root)) {
       result.disabled = true;
@@ -421,6 +524,8 @@ export function autoReap(root) {
       if (out.removed) result.reaped.push(candidate.path);
       else result.skipped.push({ path: candidate.path, reason: out.reason });
     }
+    // After the worktrees: removing one frees its branch, which may then be a landed plain branch.
+    result.branches = reapMergedBranches(root);
   } catch (err) {
     // Swallowed deliberately, and recorded rather than discarded: the merge must survive whatever
     // went wrong in here, but a silent failure that leaves no trace is how this rots unnoticed.
@@ -605,6 +710,7 @@ if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.
     // The unattended entry point, called by the post-merge hook. Prints only what it actually did.
     const out = autoReap(root);
     for (const p of out.reaped) process.stdout.write(`rsc: retired worktree ${p}\n`);
+    for (const b of out.branches.deleted) process.stdout.write(`rsc: deleted merged branch ${b}\n`);
   } else if (process.argv[3] === 'reap') {
     const one = process.argv[4];
     const targets = one ? [resolve(one)] : candidates.filter((c) => c.verdict === 'safe').map((c) => c.path);
